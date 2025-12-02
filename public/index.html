@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ag.link - Link Qısaldıcı</title>
+    <style>
+        body {font-family: Arial; text-align: center; padding: 50px; background: #f4f6f9;}
+        .box {max-width: 600px; margin: auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);}
+        input, button {width: 100%; padding: 15px; margin: 10px 0; font-size: 18px; border-radius: 8px;}
+        input {border: 2px solid #ddd;}
+        button {background: #007bff; color: white; border: none; cursor: pointer;}
+        button:hover {background: #0056b3;}
+        .result {margin-top: 20px; padding: 15px; background: #e9f7ef; border-radius: 8px; font-size: 20px;}
+        .copy {background: #28a745; padding: 10px 20px; font-size: 16px;}
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>ag.link</h1>
+        <p>Linki qısaldın və paylaşın</p>
+        <input type="text" id="url" placeholder="https://uzun-link-bura.com">
+        <button onclick="qisalt()">Qısalt</button>
+        <div id="netice" class="result"></div>
+    </div>
+
+    <script>
+        async function qisalt() {
+            const url = document.getElementById('url').value.trim();
+            if (!url) return alert('Link yazın');
+
+            const res = await fetch('/api/shorten', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({fullUrl: url})
+            });
+            const data = await res.json();
+
+            if (data.shortUrl) {
+                document.getElementById('netice').innerHTML = `
+                    <strong>${data.shortUrl}</strong><br>
+                    <button class="copy" onclick="navigator.clipboard.writeText('${data.shortUrl}')">Kopyala</button>
+                `;
+            } else {
+                alert(data.error || 'Xəta');
+            }
+        }
+    </script>
+</body>
+</html>
