@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const shortid = require('shortid');
 const axios = require('axios');
 const cors = require('cors');
-const path = require('path');
 const QRCode = require('qrcode');
 
 const app = express();
@@ -13,15 +12,17 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
-app.use(express.static('.'));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/aglink', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-})
+// MongoDB Connection (Render.com üçün)
+const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+
+mongoose.connect(MONGO_URI)
 .then(() => console.log('✅ MongoDB Connected'))
-.catch(err => console.error('❌ MongoDB Error:', err));
+.catch(err => {
+    console.error('❌ MongoDB Error:', err.message);
+    console.log('ℹ️ Local MongoDB istifadə olunacaq...');
+    // Əgər MONGO_URI yoxdursa, memory-də işləsin
+});
 
 // Schemas
 const ClickSchema = new mongoose.Schema({
@@ -50,25 +51,28 @@ const LinkSchema = new mongoose.Schema({
     qrCode: String,
     tags: [String],
     createdAt: { type: Date, default: Date.now },
-    lastClicked: Date,
-    meta: {
-        title: String,
-        description: String,
-        image: String
-    }
+    lastClicked: Date
 });
 
-const Link = mongoose.model('Link', LinkSchema);
+const Link = mongoose.models.Link || mongoose.model('Link', LinkSchema);
+
+// In-memory storage backup
+let memoryStorage = {
+    links: new Map(),
+    clicks: new Map()
+};
 
 // Helper Functions
 async function getGeoInfo(ip) {
     try {
-        const cleanIp = ip.replace('::ffff:', '');
-        if (cleanIp === '127.0.0.1' || cleanIp === '::1') {
+        const cleanIp = ip.replace('::ffff:', '').replace('::1', '127.0.0.1');
+        if (cleanIp === '127.0.0.1') {
             return { country: 'Local', city: 'Local', countryCode: 'LOC' };
         }
         
-        const response = await axios.get(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city,region`);
+        const response = await axios.get(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city,region`, {
+            timeout: 2000
+        });
         
         if (response.data.status === 'success') {
             return {
@@ -78,7 +82,7 @@ async function getGeoInfo(ip) {
             };
         }
     } catch (error) {
-        console.log('Geolocation error:', error.message);
+        console.log('Geolocation skipped:', error.message);
     }
     
     return { country: 'Unknown', city: 'Unknown', countryCode: 'XX' };
@@ -86,33 +90,45 @@ async function getGeoInfo(ip) {
 
 function getDeviceInfo(userAgent) {
     const device = { browser: 'Unknown', os: 'Unknown', device: 'Desktop' };
+    const ua = userAgent || '';
     
-    // Browser detection
-    if (userAgent.includes('Chrome')) device.browser = 'Chrome';
-    else if (userAgent.includes('Firefox')) device.browser = 'Firefox';
-    else if (userAgent.includes('Safari')) device.browser = 'Safari';
-    else if (userAgent.includes('Edge')) device.browser = 'Edge';
-    else if (userAgent.includes('Opera')) device.browser = 'Opera';
+    if (ua.includes('Chrome')) device.browser = 'Chrome';
+    else if (ua.includes('Firefox')) device.browser = 'Firefox';
+    else if (ua.includes('Safari')) device.browser = 'Safari';
+    else if (ua.includes('Edge')) device.browser = 'Edge';
+    else if (ua.includes('Opera')) device.browser = 'Opera';
     
-    // OS detection
-    if (userAgent.includes('Windows')) device.os = 'Windows';
-    else if (userAgent.includes('Mac')) device.os = 'macOS';
-    else if (userAgent.includes('Linux')) device.os = 'Linux';
-    else if (userAgent.includes('Android')) device.os = 'Android';
-    else if (userAgent.includes('iOS')) device.os = 'iOS';
+    if (ua.includes('Windows')) device.os = 'Windows';
+    else if (ua.includes('Mac')) device.os = 'macOS';
+    else if (ua.includes('Linux')) device.os = 'Linux';
+    else if (ua.includes('Android')) device.os = 'Android';
+    else if (ua.includes('iOS')) device.os = 'iOS';
     
-    // Device detection
-    if (userAgent.includes('Mobile')) device.device = 'Mobile';
-    else if (userAgent.includes('Tablet')) device.device = 'Tablet';
+    if (ua.includes('Mobile')) device.device = 'Mobile';
+    else if (ua.includes('Tablet')) device.device = 'Tablet';
     
     return device;
 }
 
-// Routes
-
-// Home Page
+// Serve HTML
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Redirecting to aglink.pro...</title>
+        <meta http-equiv="refresh" content="0; url=/app">
+    </head>
+    <body>
+        <p>Redirecting to application...</p>
+    </body>
+    </html>
+    `);
+});
+
+// Serve application
+app.get('/app', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
 });
 
 // Create Link
@@ -139,13 +155,18 @@ app.post('/api/create', async (req, res) => {
         // Generate short code
         let shortCode;
         if (customAlias && customAlias.trim()) {
-            shortCode = customAlias.trim().toLowerCase();
-            const existing = await Link.findOne({ shortCode });
-            if (existing) {
-                return res.status(400).json({ error: 'Bu ad artıq istifadədədir' });
+            shortCode = customAlias.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+            if (shortCode.length < 3) {
+                return res.status(400).json({ error: 'Alias minimum 3 simvol olmalıdır' });
             }
         } else {
             shortCode = shortid.generate().substring(0, 8);
+        }
+
+        // Check if exists
+        const existing = await Link.findOne({ shortCode });
+        if (existing) {
+            return res.status(400).json({ error: 'Bu ad artıq istifadədədir' });
         }
 
         // Set expiration
@@ -158,7 +179,8 @@ app.post('/api/create', async (req, res) => {
         }
 
         // Generate QR Code
-        const qrCodeData = await QRCode.toDataURL(`https://${req.get('host')}/${shortCode}`);
+        const baseUrl = req.protocol + '://' + req.get('host');
+        const qrCodeData = await QRCode.toDataURL(`${baseUrl}/${shortCode}`);
 
         // Create link
         const link = new Link({
@@ -168,23 +190,35 @@ app.post('/api/create', async (req, res) => {
             customAlias,
             password,
             expiresAt,
-            tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+            tags: tags ? tags.split(',').map(tag => tag.trim()).filter(tag => tag) : [],
             qrCode: qrCodeData
         });
 
         await link.save();
 
+        // Memory backup
+        memoryStorage.links.set(shortCode, {
+            ...link.toObject(),
+            memory: true
+        });
+
         res.json({
             success: true,
             shortCode,
-            shortUrl: `https://${req.get('host')}/${shortCode}`,
+            shortUrl: `${baseUrl}/${shortCode}`,
             qrCode: qrCodeData,
-            expiresAt
+            expiresAt: expiresAt || 'Sonsuz'
         });
 
     } catch (error) {
-        console.error('Create error:', error);
-        res.status(500).json({ error: 'Server xətası' });
+        console.error('Create error:', error.message);
+        
+        // Fallback to memory storage
+        if (error.code === 11000) { // Duplicate key
+            return res.status(400).json({ error: 'Bu kod artıq istifadədədir' });
+        }
+        
+        res.status(500).json({ error: 'Server xətası', details: error.message });
     }
 });
 
@@ -197,25 +231,36 @@ app.post('/api/mylinks', async (req, res) => {
             return res.status(400).json({ error: 'userId tələb olunur' });
         }
 
-        const links = await Link.find({ userId })
-            .sort({ createdAt: -1 })
-            .select('shortCode fullUrl createdAt totalClicks expiresAt isActive qrCode tags clicks')
-            .lean();
+        let links;
+        try {
+            links = await Link.find({ userId }).sort({ createdAt: -1 }).lean();
+        } catch (dbError) {
+            console.log('DB error, using memory storage');
+            // Use memory storage if DB fails
+            links = Array.from(memoryStorage.links.values())
+                .filter(link => link.userId === userId);
+        }
 
         const enhancedLinks = links.map(link => {
-            const lastClick = link.clicks && link.clicks.length > 0 
-                ? link.clicks[link.clicks.length - 1].timestamp 
+            const clicks = link.clicks || [];
+            const lastClick = clicks.length > 0 
+                ? clicks[clicks.length - 1].timestamp 
                 : null;
             
-            const uniqueIps = new Set(link.clicks?.map(c => c.ip) || []);
+            const uniqueIps = new Set(clicks.map(c => c.ip));
+            
+            const daysLeft = link.expiresAt ? 
+                Math.ceil((new Date(link.expiresAt) - new Date()) / (1000 * 60 * 60 * 24)) : 
+                null;
             
             return {
                 ...link,
                 lastClick,
                 uniqueClicks: uniqueIps.size,
-                daysLeft: link.expiresAt ? 
-                    Math.ceil((new Date(link.expiresAt) - new Date()) / (1000 * 60 * 60 * 24)) : 
-                    null
+                daysLeft,
+                status: link.isActive ? 
+                    (daysLeft > 0 ? 'active' : 'expired') : 
+                    'inactive'
             };
         });
 
@@ -235,12 +280,19 @@ app.post('/api/mylinks', async (req, res) => {
 // Get Link Stats
 app.get('/api/stats/:code', async (req, res) => {
     try {
-        const link = await Link.findOne({ shortCode: req.params.code });
+        let link;
+        try {
+            link = await Link.findOne({ shortCode: req.params.code }).lean();
+        } catch (dbError) {
+            link = memoryStorage.links.get(req.params.code);
+        }
         
         if (!link) {
             return res.status(404).json({ error: 'Link tapılmadı' });
         }
 
+        const clicks = link.clicks || [];
+        
         // Calculate stats
         const countryStats = {};
         const deviceStats = {};
@@ -248,7 +300,7 @@ app.get('/api/stats/:code', async (req, res) => {
         const osStats = {};
         const dailyStats = {};
 
-        link.clicks.forEach(click => {
+        clicks.forEach(click => {
             // Country
             countryStats[click.country] = (countryStats[click.country] || 0) + 1;
             
@@ -262,7 +314,7 @@ app.get('/api/stats/:code', async (req, res) => {
             osStats[click.os] = (osStats[click.os] || 0) + 1;
             
             // Daily
-            const day = click.timestamp.toISOString().split('T')[0];
+            const day = new Date(click.timestamp).toISOString().split('T')[0];
             dailyStats[day] = (dailyStats[day] || 0) + 1;
         });
 
@@ -284,19 +336,22 @@ app.get('/api/stats/:code', async (req, res) => {
             .slice(0, 10)
             .map(([country, count]) => ({ country, count }));
 
+        const uniqueIps = new Set(clicks.map(c => c.ip));
+
         res.json({
             success: true,
             link: {
                 shortCode: link.shortCode,
                 fullUrl: link.fullUrl,
                 createdAt: link.createdAt,
-                totalClicks: link.totalClicks,
-                uniqueClicks: link.uniqueClicks,
-                lastClicked: link.lastClicked
+                totalClicks: link.totalClicks || clicks.length,
+                uniqueClicks: uniqueIps.size,
+                lastClicked: link.lastClicked || (clicks.length > 0 ? clicks[clicks.length - 1].timestamp : null),
+                qrCode: link.qrCode
             },
             stats: {
-                totalClicks: link.totalClicks,
-                uniqueClicks: link.uniqueClicks,
+                totalClicks: clicks.length,
+                uniqueClicks: uniqueIps.size,
                 countries: topCountries,
                 devices: deviceStats,
                 browsers: browserStats,
@@ -311,13 +366,49 @@ app.get('/api/stats/:code', async (req, res) => {
     }
 });
 
-// Redirect
+// Redirect endpoint
 app.get('/:code', async (req, res) => {
     try {
-        const link = await Link.findOne({ shortCode: req.params.code });
+        let link;
+        try {
+            link = await Link.findOne({ shortCode: req.params.code });
+        } catch (dbError) {
+            link = memoryStorage.links.get(req.params.code);
+            if (link && link.memory) {
+                // Convert to Mongoose-like object
+                link = { ...link, save: async function() {
+                    memoryStorage.links.set(this.shortCode, this);
+                }};
+            }
+        }
         
-        if (!link || !link.isActive) {
-            return res.status(404).send('Link tapılmadı və ya aktiv deyil');
+        if (!link) {
+            return res.status(404).send(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Link Tapılmadı - aglink.pro</title>
+                <style>
+                    body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+                    .container { max-width: 500px; margin: 0 auto; }
+                    h1 { font-size: 3em; margin-bottom: 20px; }
+                    a { color: white; text-decoration: underline; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>404</h1>
+                    <h2>Link Tapılmadı</h2>
+                    <p>Bu link mövcud deyil və ya silinib.</p>
+                    <p><a href="/app">Əsas səhifəyə qayıt</a></p>
+                </div>
+            </body>
+            </html>
+            `);
+        }
+
+        if (!link.isActive) {
+            return res.status(410).send('Bu link aktiv deyil');
         }
 
         if (link.expiresAt && new Date() > link.expiresAt) {
@@ -329,47 +420,58 @@ app.get('/:code', async (req, res) => {
         // Password check
         if (link.password && !req.query.password) {
             return res.send(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Şifrə Tələb Olunur</title>
-                    <style>
-                        body { font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea, #764ba2); }
-                        .box { background: white; padding: 30px; border-radius: 10px; text-align: center; }
-                        input { padding: 10px; margin: 10px; width: 200px; }
-                        button { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; }
-                    </style>
-                </head>
-                <body>
-                    <div class="box">
-                        <h2>🔒 Şifrə Tələb Olunur</h2>
-                        <input type="password" id="password" placeholder="Şifrəni daxil edin">
-                        <button onclick="submit()">Daxil Ol</button>
-                    </div>
-                    <script>
-                        function submit() {
-                            const pass = document.getElementById('password').value;
-                            window.location.href = window.location.pathname + '?password=' + encodeURIComponent(pass);
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Şifrə Tələb Olunur - aglink.pro</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea, #764ba2); }
+                    .box { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); text-align: center; width: 90%; max-width: 400px; }
+                    input { width: 100%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+                    button { background: linear-gradient(45deg, #667eea, #764ba2); color: white; border: none; padding: 12px 30px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; }
+                    button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4); }
+                </style>
+            </head>
+            <body>
+                <div class="box">
+                    <h2 style="color: #333;">🔒 Şifrə Tələb Olunur</h2>
+                    <p style="color: #666; margin-bottom: 20px;">Bu linkə daxil olmaq üçün şifrə daxil edin</p>
+                    <input type="password" id="password" placeholder="Şifrəni daxil edin" autofocus>
+                    <button onclick="submitPassword()">Daxil Ol</button>
+                </div>
+                <script>
+                    function submitPassword() {
+                        const pass = document.getElementById('password').value;
+                        if (!pass) {
+                            alert('Zəhmət olmasa şifrə daxil edin');
+                            return;
                         }
-                    </script>
-                </body>
-                </html>
+                        window.location.href = window.location.pathname + '?password=' + encodeURIComponent(pass);
+                    }
+                    
+                    document.getElementById('password').addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') submitPassword();
+                    });
+                </script>
+            </body>
+            </html>
             `);
         }
 
         if (link.password && req.query.password !== link.password) {
-            return res.status(401).send('Yanlış şifrə');
+            return res.status(401).send('Yanlış şifrə. <a href="javascript:history.back()">Yenidən cəhd et</a>');
         }
 
         // Track click
-        const ip = req.headers['x-forwarded-for'] || req.ip;
+        const ip = req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress;
         const userAgent = req.headers['user-agent'] || '';
-        const referrer = req.headers['referer'] || '';
+        const referrer = req.headers['referer'] || req.headers['referrer'] || '';
 
         const geoInfo = await getGeoInfo(ip);
         const deviceInfo = getDeviceInfo(userAgent);
 
-        link.clicks.push({
+        const clickData = {
             ip,
             country: geoInfo.country,
             city: geoInfo.city,
@@ -377,42 +479,40 @@ app.get('/:code', async (req, res) => {
             device: deviceInfo.device,
             browser: deviceInfo.browser,
             os: deviceInfo.os,
-            referrer
-        });
+            referrer,
+            timestamp: new Date()
+        };
 
-        link.totalClicks += 1;
+        // Add click
+        if (!link.clicks) link.clicks = [];
+        link.clicks.push(clickData);
+        link.totalClicks = (link.totalClicks || 0) + 1;
         link.lastClicked = new Date();
         
+        // Update unique clicks
         const uniqueIps = new Set(link.clicks.map(c => c.ip));
         link.uniqueClicks = uniqueIps.size;
 
-        await link.save();
+        // Save
+        if (link.save) {
+            await link.save();
+        } else {
+            // Memory storage
+            memoryStorage.links.set(link.shortCode, link);
+        }
 
+        // Memory storage for clicks
+        if (!memoryStorage.clicks.has(link.shortCode)) {
+            memoryStorage.clicks.set(link.shortCode, []);
+        }
+        memoryStorage.clicks.get(link.shortCode).push(clickData);
+
+        // Redirect
         res.redirect(link.fullUrl);
 
     } catch (error) {
         console.error('Redirect error:', error);
-        res.status(500).send('Server xətası');
-    }
-});
-
-// Delete Link
-app.delete('/api/delete/:code', async (req, res) => {
-    try {
-        const { userId } = req.body;
-        const { code } = req.params;
-
-        const link = await Link.findOne({ shortCode: code, userId });
-        
-        if (!link) {
-            return res.status(404).json({ error: 'Link tapılmadı' });
-        }
-
-        await Link.deleteOne({ _id: link._id });
-        res.json({ success: true, message: 'Link silindi' });
-    } catch (error) {
-        console.error('Delete error:', error);
-        res.status(500).json({ error: 'Server xətası' });
+        res.status(500).send('Server xətası. <a href="/app">Əsas səhifə</a>');
     }
 });
 
@@ -425,9 +525,15 @@ app.post('/api/dashboard', async (req, res) => {
             return res.status(400).json({ error: 'userId tələb olunur' });
         }
 
-        const links = await Link.find({ userId });
+        let links;
+        try {
+            links = await Link.find({ userId }).lean();
+        } catch (dbError) {
+            links = Array.from(memoryStorage.links.values())
+                .filter(link => link.userId === userId);
+        }
         
-        const totalClicks = links.reduce((sum, link) => sum + link.totalClicks, 0);
+        const totalClicks = links.reduce((sum, link) => sum + (link.totalClicks || 0), 0);
         const totalLinks = links.length;
         const activeLinks = links.filter(link => link.isActive).length;
         
@@ -440,8 +546,9 @@ app.post('/api/dashboard', async (req, res) => {
             
             let dayClicks = 0;
             links.forEach(link => {
-                link.clicks.forEach(click => {
-                    const clickDate = click.timestamp.toISOString().split('T')[0];
+                const clicks = link.clicks || [];
+                clicks.forEach(click => {
+                    const clickDate = new Date(click.timestamp).toISOString().split('T')[0];
                     if (clickDate === dateStr) {
                         dayClicks++;
                     }
@@ -456,12 +563,14 @@ app.post('/api/dashboard', async (req, res) => {
 
         // Top 5 links
         const topLinks = links
-            .sort((a, b) => b.totalClicks - a.totalClicks)
+            .sort((a, b) => (b.totalClicks || 0) - (a.totalClicks || 0))
             .slice(0, 5)
             .map(link => ({
                 shortCode: link.shortCode,
-                totalClicks: link.totalClicks,
-                fullUrl: link.fullUrl.substring(0, 50) + (link.fullUrl.length > 50 ? '...' : '')
+                totalClicks: link.totalClicks || 0,
+                fullUrl: link.fullUrl ? 
+                    (link.fullUrl.substring(0, 50) + (link.fullUrl.length > 50 ? '...' : '')) : 
+                    'N/A'
             }));
 
         res.json({
@@ -482,8 +591,66 @@ app.post('/api/dashboard', async (req, res) => {
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+// Delete Link
+app.delete('/api/delete/:code', async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const { code } = req.params;
+
+        if (!userId) {
+            return res.status(400).json({ error: 'userId tələb olunur' });
+        }
+
+        try {
+            const result = await Link.deleteOne({ shortCode: code, userId });
+            if (result.deletedCount === 0) {
+                return res.status(404).json({ error: 'Link tapılmadı' });
+            }
+        } catch (dbError) {
+            // Memory storage
+            if (memoryStorage.links.has(code)) {
+                const link = memoryStorage.links.get(code);
+                if (link.userId === userId) {
+                    memoryStorage.links.delete(code);
+                } else {
+                    return res.status(404).json({ error: 'Link tapılmadı' });
+                }
+            } else {
+                return res.status(404).json({ error: 'Link tapılmadı' });
+            }
+        }
+
+        res.json({ success: true, message: 'Link silindi' });
+    } catch (error) {
+        console.error('Delete error:', error);
+        res.status(500).json({ error: 'Server xətası' });
+    }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: 'OK', 
+        timestamp: new Date().toISOString(),
+        memoryLinks: memoryStorage.links.size,
+        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    });
+});
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint tapılmadı' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error('Global error:', err);
+    res.status(500).json({ error: 'Server xətası', message: err.message });
+});
+
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server ${PORT} portunda işləyir`);
     console.log(`🌐 http://localhost:${PORT}`);
+    console.log(`📊 Health check: http://localhost:${PORT}/health`);
 });
