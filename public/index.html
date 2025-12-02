@@ -15,6 +15,8 @@
             --danger: #ef4444;
             --warning: #f59e0b;
             --info: #3b82f6;
+            --dark: #1f2937;
+            --light: #f9fafb;
         }
         
         body {
@@ -38,6 +40,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.08);
             transition: transform 0.3s ease;
             background: white;
+            margin-bottom: 20px;
         }
         
         .card:hover {
@@ -50,6 +53,7 @@
             padding: 12px 30px;
             border-radius: 10px;
             font-weight: 600;
+            transition: all 0.3s ease;
         }
         
         .btn-primary:hover {
@@ -65,6 +69,11 @@
         .link-item {
             border-left: 4px solid transparent;
             transition: all 0.3s ease;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: white;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
         }
         
         .link-item:hover {
@@ -72,27 +81,18 @@
             background: #f8f9ff;
         }
         
-        .tab-content {
-            background: white;
-            border-radius: 0 0 15px 15px;
-            padding: 25px;
-        }
-        
-        .nav-tabs {
-            border-bottom: 2px solid #dee2e6;
-        }
-        
         .nav-tabs .nav-link {
             border: none;
             color: #666;
             font-weight: 500;
             padding: 12px 25px;
+            border-radius: 10px 10px 0 0;
+            margin-right: 5px;
         }
         
         .nav-tabs .nav-link.active {
             background: linear-gradient(45deg, var(--primary), var(--secondary));
             color: white;
-            border-radius: 10px 10px 0 0;
         }
         
         .qr-code {
@@ -101,6 +101,7 @@
             border-radius: 10px;
             display: inline-block;
             border: 1px solid #dee2e6;
+            max-width: 200px;
         }
         
         .notification {
@@ -108,6 +109,7 @@
             top: 20px;
             right: 20px;
             z-index: 9999;
+            min-width: 300px;
             animation: slideIn 0.3s ease;
         }
         
@@ -116,11 +118,47 @@
             to { transform: translateX(0); opacity: 1; }
         }
         
-        .flag-icon {
-            width: 24px;
-            height: 16px;
-            border-radius: 2px;
+        .tab-content {
+            padding: 20px 0;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .country-flag {
+            font-size: 1.2em;
             margin-right: 8px;
+        }
+        
+        .progress-thin {
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        @media (max-width: 768px) {
+            .navbar-brand {
+                font-size: 1.4rem;
+            }
+            
+            .card {
+                margin: 10px;
+            }
+            
+            .btn-primary {
+                padding: 10px 20px;
+            }
         }
     </style>
 </head>
@@ -128,106 +166,137 @@
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
         <div class="container">
-            <a class="navbar-brand" href="#">
+            <a class="navbar-brand" href="/app">
                 <i class="bi bi-link-45deg me-2"></i>aglink.pro
             </a>
-            <div class="d-flex">
-                <button class="btn btn-outline-primary me-2" onclick="showTab('create')">
-                    <i class="bi bi-plus-circle me-1"></i>Yeni Link
-                </button>
-                <button class="btn btn-outline-info" onclick="showTab('dashboard')">
-                    <i class="bi bi-graph-up me-1"></i>Dashboard
-                </button>
+            <div class="d-flex align-items-center">
+                <span class="badge bg-success me-3 d-none d-md-inline">v2.0</span>
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-primary" onclick="showTab('create')">
+                        <i class="bi bi-plus-circle me-1"></i>Yeni
+                    </button>
+                    <button class="btn btn-outline-info" onclick="showTab('dashboard')">
+                        <i class="bi bi-graph-up me-1"></i>Dashboard
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="showTab('links')">
+                        <i class="bi bi-list me-1"></i>Linklər
+                    </button>
+                </div>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <div class="container py-5">
-        <!-- Create Link Tab -->
-        <div id="create-tab">
+    <div class="container py-4">
+        <!-- Create Tab -->
+        <div id="create-tab" class="tab-content">
             <div class="row justify-content-center">
                 <div class="col-lg-8">
-                    <div class="card p-4 mb-4">
+                    <div class="card p-4">
                         <h3 class="mb-4"><i class="bi bi-link me-2"></i>Yeni Link Yarat</h3>
                         
                         <div class="mb-3">
-                            <label class="form-label">URL</label>
+                            <label class="form-label fw-bold">URL</label>
                             <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-globe"></i></span>
+                                <span class="input-group-text bg-light"><i class="bi bi-globe"></i></span>
                                 <input type="url" id="fullUrl" class="form-control" 
-                                       placeholder="https://example.com/uzun-link" required>
+                                       placeholder="https://example.com/çox-uzun-bir-link" 
+                                       required
+                                       autofocus>
                             </div>
+                            <div class="form-text">Tam URL daxil edin (http:// və ya https:// ilə)</div>
                         </div>
                         
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Xüsusi Ad (İstəyə bağlı)</label>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Xüsusi Ad</label>
                                 <div class="input-group">
-                                    <span class="input-group-text">aglink.pro/</span>
+                                    <span class="input-group-text bg-light">aglink.pro/</span>
                                     <input type="text" id="customAlias" class="form-control" 
                                            placeholder="mening-linkim">
                                 </div>
-                                <small class="text-muted">Boş buraxılsa, avtomatik kod yaradılacaq</small>
+                                <div class="form-text">İstəyə bağlı. Boş buraxılsa, avtomatik kod yaradılacaq</div>
                             </div>
                             
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Müddət</label>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Müddət</label>
                                 <select id="expiresIn" class="form-select">
                                     <option value="3600">1 Saat</option>
                                     <option value="86400">1 Gün</option>
                                     <option value="604800">1 Həftə</option>
                                     <option value="2592000">1 Ay</option>
+                                    <option value="31536000">1 İl</option>
                                     <option value="forever" selected>Sonsuz</option>
                                 </select>
+                                <div class="form-text">Linkin aktiv qalacağı müddət</div>
                             </div>
                         </div>
                         
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Şifrə (İstəyə bağlı)</label>
+                        <div class="row g-3 mt-2">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Şifrə (İstəyə bağlı)</label>
                                 <input type="password" id="password" class="form-control" 
                                        placeholder="Linki qorumaq üçün şifrə">
+                                <div class="form-text">Şifrə tələb etmək istəyirsinizsə</div>
                             </div>
                             
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tags (Vergüllə)</label>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Tags (Vergüllə)</label>
                                 <input type="text" id="tags" class="form-control" 
-                                       placeholder="marketting, sosial, iş">
+                                       placeholder="marketting, sosial, iş, şəxsi">
+                                <div class="form-text">Linki təsnif etmək üçün</div>
                             </div>
                         </div>
                         
-                        <button class="btn btn-primary btn-lg w-100" onclick="createLink()">
-                            <i class="bi bi-lightning me-2"></i>Linki Qısalt
-                        </button>
+                        <div class="mt-4 pt-3 border-top">
+                            <button class="btn btn-primary btn-lg w-100 py-3" onclick="createLink()" id="createBtn">
+                                <i class="bi bi-lightning me-2"></i>Linki Qısalt
+                            </button>
+                        </div>
                     </div>
                     
-                    <div id="result-card" class="card p-4" style="display: none;">
-                        <h4 class="mb-3">✅ Link Hazırdır!</h4>
+                    <div id="result-card" class="card p-4 mt-4" style="display: none;">
+                        <h4 class="mb-4 text-success"><i class="bi bi-check-circle me-2"></i>Link Hazırdır!</h4>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Linkiniz uğurla yaradıldı. Aşağıdakı linki paylaşa bilərsiniz.
+                        </div>
+                        
                         <div class="row align-items-center">
                             <div class="col-md-8">
+                                <label class="form-label fw-bold">Qısaldılmış Link</label>
                                 <div class="input-group mb-3">
-                                    <input type="text" id="shortUrlResult" class="form-control" readonly>
+                                    <input type="text" id="shortUrlResult" class="form-control form-control-lg" readonly>
                                     <button class="btn btn-success" onclick="copyResult()">
-                                        <i class="bi bi-copy"></i> Kopyala
+                                        <i class="bi bi-copy"></i>
                                     </button>
                                 </div>
+                                
                                 <div class="mb-3">
-                                    <strong>Orijinal:</strong> 
-                                    <span id="originalUrl" class="text-muted"></span>
+                                    <label class="form-label fw-bold">Orijinal Link</label>
+                                    <div class="form-control bg-light">
+                                        <span id="originalUrl" class="text-muted"></span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-md-4 text-center">
-                                <div id="qrCodeContainer"></div>
+                                <div class="mb-3">
+                                    <div id="qrCodeContainer"></div>
+                                </div>
                                 <small class="text-muted">QR Kod</small>
                             </div>
                         </div>
-                        <div class="mt-3">
-                            <button class="btn btn-outline-primary me-2" onclick="shareLink()">
-                                <i class="bi bi-share"></i> Paylaş
+                        
+                        <div class="d-flex gap-2 mt-4">
+                            <button class="btn btn-outline-primary flex-fill" onclick="shareLink()">
+                                <i class="bi bi-share me-2"></i>Paylaş
                             </button>
-                            <button class="btn btn-outline-info" onclick="viewStats()">
-                                <i class="bi bi-bar-chart"></i> Statistika
+                            <button class="btn btn-outline-info flex-fill" onclick="viewStats()">
+                                <i class="bi bi-bar-chart me-2"></i>Statistika
+                            </button>
+                            <button class="btn btn-outline-success flex-fill" onclick="showTab('links')">
+                                <i class="bi bi-list me-2"></i>Bütün Linklər
                             </button>
                         </div>
                     </div>
@@ -236,111 +305,212 @@
         </div>
 
         <!-- Dashboard Tab -->
-        <div id="dashboard-tab" style="display: none;">
-            <h3 class="mb-4"><i class="bi bi-graph-up me-2"></i>Dashboard</h3>
+        <div id="dashboard-tab" class="tab-content" style="display: none;">
+            <h3 class="mb-4"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h3>
             
-            <!-- Stats Cards -->
-            <div class="row mb-4">
-                <div class="col-md-3">
+            <!-- Stats Overview -->
+            <div class="row g-4 mb-4">
+                <div class="col-md-3 col-6">
                     <div class="card p-3 stat-card">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-muted">Ümumi Linklər</h6>
-                                <h3 id="totalLinks" class="mb-0">0</h3>
+                                <h6 class="text-muted mb-1">Ümumi Linklər</h6>
+                                <h2 id="totalLinks" class="mb-0">0</h2>
                             </div>
-                            <div class="align-self-center">
-                                <i class="bi bi-link-45deg text-primary fs-4"></i>
-                            </div>
+                            <i class="bi bi-link-45deg text-primary fs-3"></i>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 col-6">
                     <div class="card p-3 stat-card">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-muted">Aktiv Linklər</h6>
-                                <h3 id="activeLinks" class="mb-0">0</h3>
+                                <h6 class="text-muted mb-1">Aktiv Linklər</h6>
+                                <h2 id="activeLinks" class="mb-0">0</h2>
                             </div>
-                            <div class="align-self-center">
-                                <i class="bi bi-lightning text-success fs-4"></i>
-                            </div>
+                            <i class="bi bi-lightning text-success fs-3"></i>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 col-6">
                     <div class="card p-3 stat-card">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-muted">Ümumi Kliklər</h6>
-                                <h3 id="totalClicks" class="mb-0">0</h3>
+                                <h6 class="text-muted mb-1">Ümumi Kliklər</h6>
+                                <h2 id="totalClicks" class="mb-0">0</h2>
                             </div>
-                            <div class="align-self-center">
-                                <i class="bi bi-mouse text-info fs-4"></i>
-                            </div>
+                            <i class="bi bi-mouse text-info fs-3"></i>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-3">
+                <div class="col-md-3 col-6">
                     <div class="card p-3 stat-card">
-                        <div class="d-flex justify-content-between">
+                        <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="text-muted">Orta Klik/Link</h6>
-                                <h3 id="avgClicks" class="mb-0">0</h3>
+                                <h6 class="text-muted mb-1">Orta Klik/Link</h6>
+                                <h2 id="avgClicks" class="mb-0">0.0</h2>
                             </div>
-                            <div class="align-self-center">
-                                <i class="bi bi-bar-chart text-warning fs-4"></i>
-                            </div>
+                            <i class="bi bi-bar-chart text-warning fs-3"></i>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Charts -->
-            <div class="row">
+            <!-- Charts Row -->
+            <div class="row g-4">
                 <div class="col-lg-8">
-                    <div class="card p-3 mb-4">
-                        <h5>Son 7 Gün Aktivlik</h5>
-                        <canvas id="activityChart"></canvas>
+                    <div class="card p-3">
+                        <h5 class="mb-3">Son 7 Gün Aktivlik</h5>
+                        <div style="height: 300px;">
+                            <canvas id="activityChart"></canvas>
+                        </div>
                     </div>
                 </div>
+                
                 <div class="col-lg-4">
-                    <div class="card p-3 mb-4">
-                        <h5>Ən Populer Linklər</h5>
+                    <div class="card p-3 h-100">
+                        <h5 class="mb-3">Ən Populer Linklər</h5>
                         <div id="topLinks" class="mt-3"></div>
+                        <div id="noTopLinks" class="text-center py-4 text-muted" style="display: none;">
+                            <i class="bi bi-bar-chart fs-1"></i>
+                            <p class="mt-2">Hələ kifayət qədər məlumat yoxdur</p>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Links List -->
-            <div class="card p-3">
-                <h5 class="mb-3">Son Linklərim</h5>
-                <div id="recentLinks"></div>
+            <!-- Quick Actions -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-1">Tez Əməliyyatlar</h5>
+                                <p class="text-muted mb-0">Linklərinizi idarə edin</p>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary me-2" onclick="showTab('create')">
+                                    <i class="bi bi-plus-circle me-1"></i>Yeni Link
+                                </button>
+                                <button class="btn btn-outline-info" onclick="loadDashboard()">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Yenilə
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Links Tab -->
+        <div id="links-tab" class="tab-content" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 class="mb-0"><i class="bi bi-list-task me-2"></i>Linklərim</h3>
+                <div class="d-flex gap-2">
+                    <div class="input-group" style="max-width: 300px;">
+                        <input type="text" id="searchLinks" class="form-control" placeholder="Link axtar...">
+                        <button class="btn btn-outline-secondary" onclick="searchLinks()">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                    <button class="btn btn-primary" onclick="showTab('create')">
+                        <i class="bi bi-plus-circle me-1"></i>Yeni
+                    </button>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="card p-3">
+                        <div class="row text-center">
+                            <div class="col">
+                                <small class="text-muted">Cəmi</small>
+                                <h5 id="totalLinksCount" class="mb-0">0</h5>
+                            </div>
+                            <div class="col">
+                                <small class="text-muted">Aktiv</small>
+                                <h5 id="activeLinksCount" class="mb-0">0</h5>
+                            </div>
+                            <div class="col">
+                                <small class="text-muted">Kliklər</small>
+                                <h5 id="totalClicksCount" class="mb-0">0</h5>
+                            </div>
+                            <div class="col">
+                                <small class="text-muted">Unikal</small>
+                                <h5 id="uniqueClicksCount" class="mb-0">0</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="linksList"></div>
+            
+            <div id="noLinks" class="text-center py-5" style="display: none;">
+                <i class="bi bi-link-45deg fs-1 text-muted mb-3"></i>
+                <h4>Hələ link yoxdur</h4>
+                <p class="text-muted mb-4">İlk linkinizi yaratmaq üçün "Yeni Link" düyməsini basın</p>
+                <button class="btn btn-primary btn-lg" onclick="showTab('create')">
+                    <i class="bi bi-plus-circle me-2"></i>İlk Linkini Yarad
+                </button>
+            </div>
+            
+            <div id="loadingLinks" class="text-center py-5">
+                <div class="loading mx-auto"></div>
+                <p class="text-muted mt-3">Linklər yüklənir...</p>
             </div>
         </div>
         
         <!-- Stats Modal -->
         <div class="modal fade" id="statsModal" tabindex="-1">
-            <div class="modal-dialog modal-xl">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">📊 Detallı Statistika</h5>
+                        <h5 class="modal-title"><i class="bi bi-bar-chart me-2"></i>Detallı Statistika</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <div id="statsContent"></div>
+                        <div id="statsContent">
+                            <div class="text-center py-5">
+                                <div class="loading mx-auto"></div>
+                                <p class="text-muted mt-3">Statistika yüklənir...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Bağla</button>
+                        <button type="button" class="btn btn-primary" onclick="copyStats()">
+                            <i class="bi bi-copy me-1"></i>Statistikanı Kopyala
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Footer -->
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5><i class="bi bi-link-45deg me-2"></i>aglink.pro</h5>
+                    <p class="text-muted">Professional link qısaldıcı və izləmə platforması</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <p class="text-muted mb-0">© 2024 aglink.pro | Bütün hüquqlar qorunur</p>
+                    <p class="text-muted small">v2.0 | Render.com</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // User management
+        // Global variables
         let userId = localStorage.getItem('aglink_userId');
         if (!userId) {
             userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -349,40 +519,90 @@
 
         let activityChart = null;
         let currentStatsCode = null;
+        let allLinks = [];
+
+        // Show notification
+        function showNotification(message, type = 'info', duration = 3000) {
+            const container = document.createElement('div');
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-danger' : 
+                              type === 'warning' ? 'alert-warning' : 'alert-info';
+            
+            container.className = `notification alert ${alertClass} alert-dismissible fade show`;
+            container.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="bi ${type === 'success' ? 'bi-check-circle' : 
+                                  type === 'error' ? 'bi-exclamation-circle' : 
+                                  type === 'warning' ? 'bi-exclamation-triangle' : 'bi-info-circle'} 
+                       me-2"></i>
+                    <div>${message}</div>
+                    <button type="button" class="btn-close ms-auto" onclick="this.parentElement.parentElement.remove()"></button>
+                </div>
+            `;
+            
+            document.body.appendChild(container);
+            
+            setTimeout(() => {
+                if (container.parentNode) {
+                    container.remove();
+                }
+            }, duration);
+        }
 
         // Tab management
         function showTab(tabName) {
             // Hide all tabs
             document.getElementById('create-tab').style.display = 'none';
             document.getElementById('dashboard-tab').style.display = 'none';
+            document.getElementById('links-tab').style.display = 'none';
             
             // Show selected tab
             document.getElementById(tabName + '-tab').style.display = 'block';
             
-            // Update button states
-            document.querySelectorAll('button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Load data for dashboard
+            // Load data for tabs
             if (tabName === 'dashboard') {
                 loadDashboard();
-                loadRecentLinks();
+            } else if (tabName === 'links') {
+                loadMyLinks();
             }
+            
+            // Store last active tab
+            localStorage.setItem('lastTab', tabName);
         }
 
         // Create new link
         async function createLink() {
-            const fullUrl = document.getElementById('fullUrl').value;
-            const customAlias = document.getElementById('customAlias').value;
+            const fullUrl = document.getElementById('fullUrl').value.trim();
+            const customAlias = document.getElementById('customAlias').value.trim();
             const expiresIn = document.getElementById('expiresIn').value;
             const password = document.getElementById('password').value;
             const tags = document.getElementById('tags').value;
+            
+            const createBtn = document.getElementById('createBtn');
+            const originalText = createBtn.innerHTML;
 
             if (!fullUrl) {
                 showNotification('Xahiş edirik URL daxil edin', 'warning');
+                document.getElementById('fullUrl').focus();
                 return;
             }
+
+            // Validate URL
+            let formattedUrl = fullUrl;
+            if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+                formattedUrl = 'https://' + formattedUrl;
+            }
+
+            try {
+                new URL(formattedUrl);
+            } catch (e) {
+                showNotification('Yanlış URL formatı. Tam URL daxil edin (http:// və ya https:// ilə)', 'error');
+                return;
+            }
+
+            // Show loading
+            createBtn.innerHTML = '<span class="loading"></span> Yaradılır...';
+            createBtn.disabled = true;
 
             try {
                 const response = await fetch('/api/create', {
@@ -391,7 +611,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        fullUrl,
+                        fullUrl: formattedUrl,
                         userId,
                         expiresIn,
                         customAlias,
@@ -404,20 +624,30 @@
 
                 if (data.success) {
                     // Show result
-                    document.getElementById('shortUrlResult').value = data.shortUrl;
-                    document.getElementById('originalUrl').textContent = fullUrl;
+                    const shortUrl = data.shortUrl || `${window.location.origin}/${data.shortCode}`;
+                    document.getElementById('shortUrlResult').value = shortUrl;
+                    document.getElementById('originalUrl').textContent = formattedUrl;
                     
                     // Show QR code
                     if (data.qrCode) {
                         document.getElementById('qrCodeContainer').innerHTML = 
-                            `<img src="${data.qrCode}" alt="QR Code" class="img-fluid" style="max-width: 150px;">`;
+                            `<img src="${data.qrCode}" alt="QR Code" class="img-fluid qr-code">`;
                     }
                     
-                    // Show result card
-                    document.getElementById('result-card').style.display = 'block';
+                    // Show result card with animation
+                    const resultCard = document.getElementById('result-card');
+                    resultCard.style.display = 'block';
+                    resultCard.style.opacity = '0';
+                    resultCard.style.transform = 'translateY(20px)';
+                    
+                    setTimeout(() => {
+                        resultCard.style.transition = 'all 0.5s ease';
+                        resultCard.style.opacity = '1';
+                        resultCard.style.transform = 'translateY(0)';
+                    }, 100);
                     
                     // Scroll to result
-                    document.getElementById('result-card').scrollIntoView({ behavior: 'smooth' });
+                    resultCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     
                     // Clear form
                     document.getElementById('fullUrl').value = '';
@@ -425,17 +655,21 @@
                     document.getElementById('password').value = '';
                     document.getElementById('tags').value = '';
                     
-                    // Load dashboard data
+                    // Update dashboard and links
                     loadDashboard();
-                    loadRecentLinks();
+                    loadMyLinks();
                     
                     showNotification('✅ Link uğurla yaradıldı!', 'success');
                 } else {
-                    showNotification(data.error || 'Xəta baş verdi', 'danger');
+                    showNotification(data.error || 'Xəta baş verdi', 'error');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showNotification('Server xətası', 'danger');
+                showNotification('Server xətası. Yenidən cəhd edin.', 'error');
+            } finally {
+                // Reset button
+                createBtn.innerHTML = originalText;
+                createBtn.disabled = false;
             }
         }
 
@@ -443,26 +677,39 @@
         function copyResult() {
             const input = document.getElementById('shortUrlResult');
             input.select();
-            document.execCommand('copy');
-            showNotification('📋 Link kopyalandı!', 'success');
+            input.setSelectionRange(0, 99999);
+            
+            try {
+                navigator.clipboard.writeText(input.value).then(() => {
+                    showNotification('📋 Link kopyalandı!', 'success');
+                });
+            } catch (err) {
+                // Fallback for older browsers
+                document.execCommand('copy');
+                showNotification('📋 Link kopyalandı!', 'success');
+            }
         }
 
         // Share link
         function shareLink() {
             const url = document.getElementById('shortUrlResult').value;
+            
             if (navigator.share) {
                 navigator.share({
                     title: 'aglink.pro - Qısaldılmış Link',
                     text: 'Bu linki yoxlayın:',
                     url: url
+                }).then(() => {
+                    showNotification('Link paylaşıldı!', 'success');
+                }).catch(err => {
+                    copyResult();
                 });
             } else {
                 copyResult();
-                showNotification('Link kopyalandı, indi paylaşa bilərsiniz!', 'info');
             }
         }
 
-        // View stats
+        // View stats from result
         function viewStats() {
             const url = document.getElementById('shortUrlResult').value;
             const code = url.split('/').pop();
@@ -483,7 +730,7 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    // Update stats
+                    // Update stats cards
                     document.getElementById('totalLinks').textContent = data.overview.totalLinks;
                     document.getElementById('activeLinks').textContent = data.overview.activeLinks;
                     document.getElementById('totalClicks').textContent = data.overview.totalClicks;
@@ -491,93 +738,39 @@
                     
                     // Update top links
                     const topLinksDiv = document.getElementById('topLinks');
-                    let html = '';
-                    data.topLinks.forEach((link, index) => {
-                        html += `
-                        <div class="d-flex justify-content-between align-items-center mb-3 p-2 border-bottom">
-                            <div>
-                                <strong class="text-primary">${index + 1}. ${link.shortCode}</strong>
-                                <div class="text-muted small">${link.fullUrl}</div>
-                            </div>
-                            <span class="badge bg-primary rounded-pill">${link.totalClicks}</span>
-                        </div>`;
-                    });
-                    topLinksDiv.innerHTML = html;
+                    const noTopLinks = document.getElementById('noTopLinks');
+                    
+                    if (data.topLinks && data.topLinks.length > 0) {
+                        let html = '';
+                        data.topLinks.forEach((link, index) => {
+                            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}.`;
+                            html += `
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-2 border-bottom">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center">
+                                        <span class="me-2">${medal}</span>
+                                        <div>
+                                            <strong class="d-block">${link.shortCode}</strong>
+                                            <small class="text-muted d-block text-truncate" style="max-width: 200px;">${link.fullUrl}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">${link.totalClicks}</span>
+                            </div>`;
+                        });
+                        topLinksDiv.innerHTML = html;
+                        noTopLinks.style.display = 'none';
+                    } else {
+                        topLinksDiv.innerHTML = '';
+                        noTopLinks.style.display = 'block';
+                    }
                     
                     // Update chart
                     updateActivityChart(data.recentActivity);
                 }
             } catch (error) {
                 console.error('Dashboard error:', error);
-            }
-        }
-
-        // Load recent links
-        async function loadRecentLinks() {
-            try {
-                const response = await fetch('/api/mylinks', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ userId })
-                });
-
-                const data = await response.json();
-
-                if (data.success && data.links.length > 0) {
-                    let html = '';
-                    const recent = data.links.slice(0, 5);
-                    
-                    recent.forEach(link => {
-                        const shortUrl = `${window.location.origin}/${link.shortCode}`;
-                        const daysLeft = link.daysLeft > 0 ? 
-                            `<span class="badge bg-success">${link.daysLeft} gün</span>` : 
-                            (link.daysLeft === null ? '<span class="badge bg-info">Sonsuz</span>' : 
-                            '<span class="badge bg-danger">Bitib</span>');
-                        
-                        html += `
-                        <div class="link-item p-3 mb-2 border rounded">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <h6 class="mb-1">
-                                        <a href="${shortUrl}" target="_blank" class="text-decoration-none">
-                                            ${window.location.host}/${link.shortCode}
-                                        </a>
-                                    </h6>
-                                    <p class="text-muted mb-1 small">${link.fullUrl.substring(0, 70)}${link.fullUrl.length > 70 ? '...' : ''}</p>
-                                    <div>
-                                        <span class="badge bg-primary me-2">
-                                            <i class="bi bi-mouse"></i> ${link.totalClicks || 0}
-                                        </span>
-                                        <span class="badge bg-secondary me-2">
-                                            <i class="bi bi-calendar"></i> ${new Date(link.createdAt).toLocaleDateString('az-AZ')}
-                                        </span>
-                                        ${daysLeft}
-                                    </div>
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="viewLinkStats('${link.shortCode}')">
-                                        <i class="bi bi-bar-chart"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-success me-1" onclick="copyToClipboard('${shortUrl}')">
-                                        <i class="bi bi-copy"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>`;
-                    });
-                    
-                    document.getElementById('recentLinks').innerHTML = html;
-                } else {
-                    document.getElementById('recentLinks').innerHTML = `
-                        <div class="text-center py-4 text-muted">
-                            <i class="bi bi-link-45deg fs-1"></i>
-                            <p class="mt-2">Hələ link yoxdur</p>
-                        </div>`;
-                }
-            } catch (error) {
-                console.error('Recent links error:', error);
+                showNotification('Dashboard yüklənmədi', 'error');
             }
         }
 
@@ -591,7 +784,7 @@
             
             const labels = data.map(item => {
                 const date = new Date(item.date);
-                return date.toLocaleDateString('az-AZ', { weekday: 'short' });
+                return date.toLocaleDateString('az-AZ', { day: 'numeric', month: 'short' });
             });
             
             const clicks = data.map(item => item.clicks);
@@ -607,21 +800,44 @@
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 3,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointBackgroundColor: '#764ba2',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
                     }]
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#667eea',
+                            borderWidth: 1
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
                             ticks: {
-                                stepSize: 1
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return Number.isInteger(value) ? value : '';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.05)'
                             }
                         }
                     }
@@ -629,9 +845,136 @@
             });
         }
 
+        // Load user's links
+        async function loadMyLinks() {
+            const loadingDiv = document.getElementById('loadingLinks');
+            const linksList = document.getElementById('linksList');
+            const noLinks = document.getElementById('noLinks');
+            
+            loadingDiv.style.display = 'block';
+            linksList.innerHTML = '';
+            noLinks.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/mylinks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    allLinks = data.links || [];
+                    
+                    // Update summary
+                    document.getElementById('totalLinksCount').textContent = data.totalLinks;
+                    document.getElementById('totalClicksCount').textContent = data.totalClicks;
+                    
+                    const activeLinks = allLinks.filter(link => link.isActive && (!link.expiresAt || new Date(link.expiresAt) > new Date())).length;
+                    const uniqueClicks = allLinks.reduce((sum, link) => sum + (link.uniqueClicks || 0), 0);
+                    
+                    document.getElementById('activeLinksCount').textContent = activeLinks;
+                    document.getElementById('uniqueClicksCount').textContent = uniqueClicks;
+                    
+                    if (allLinks.length === 0) {
+                        noLinks.style.display = 'block';
+                        loadingDiv.style.display = 'none';
+                        return;
+                    }
+                    
+                    // Display links
+                    let html = '';
+                    allLinks.forEach(link => {
+                        const shortUrl = `${window.location.origin}/${link.shortCode}`;
+                        const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
+                        const isActive = link.isActive && !isExpired;
+                        
+                        const daysLeft = link.daysLeft > 0 ? 
+                            `<span class="badge bg-success">${link.daysLeft} gün</span>` : 
+                            (link.daysLeft === null ? '<span class="badge bg-info">Sonsuz</span>' : 
+                            '<span class="badge bg-danger">Bitib</span>');
+                        
+                        const statusBadge = isActive ? 
+                            '<span class="badge bg-success">Aktiv</span>' : 
+                            '<span class="badge bg-secondary">Deaktiv</span>';
+                        
+                        const hasPassword = link.password ? '<span class="badge bg-warning ms-1"><i class="bi bi-lock"></i></span>' : '';
+                        const hasQR = link.qrCode ? '<span class="badge bg-info ms-1"><i class="bi bi-qr-code"></i></span>' : '';
+                        
+                        html += `
+                        <div class="link-item" data-code="${link.shortCode}" data-url="${link.fullUrl}">
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <h6 class="mb-0 me-2">
+                                            <a href="${shortUrl}" target="_blank" class="text-decoration-none text-dark">
+                                                ${window.location.host}/${link.shortCode}
+                                            </a>
+                                        </h6>
+                                        ${hasPassword} ${hasQR}
+                                    </div>
+                                    <p class="text-muted mb-2 small">${link.fullUrl}</p>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-mouse me-1"></i>${link.totalClicks || 0}
+                                        </span>
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-people me-1"></i>${link.uniqueClicks || 0}
+                                        </span>
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="bi bi-calendar me-1"></i>${new Date(link.createdAt).toLocaleDateString('az-AZ')}
+                                        </span>
+                                        ${daysLeft}
+                                        ${statusBadge}
+                                    </div>
+                                    ${link.tags && link.tags.length > 0 ? `
+                                    <div class="mt-2">
+                                        ${link.tags.map(tag => `<span class="badge bg-light text-dark border me-1">${tag}</span>`).join('')}
+                                    </div>` : ''}
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <button class="btn btn-outline-primary" onclick="viewLinkStats('${link.shortCode}')" title="Statistika">
+                                            <i class="bi bi-bar-chart"></i>
+                                        </button>
+                                        <button class="btn btn-outline-success" onclick="copyToClipboard('${shortUrl}')" title="Kopyala">
+                                            <i class="bi bi-copy"></i>
+                                        </button>
+                                        <button class="btn btn-outline-info" onclick="showQRCode('${link.shortCode}')" title="QR Kod">
+                                            <i class="bi bi-qr-code"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger" onclick="deleteLink('${link.shortCode}')" title="Sil">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                    ${link.lastClick ? `
+                                    <div class="mt-2 small text-muted">
+                                        Son klik: ${new Date(link.lastClick).toLocaleString('az-AZ')}
+                                    </div>` : ''}
+                                </div>
+                            </div>
+                        </div>`;
+                    });
+                    
+                    linksList.innerHTML = html;
+                    loadingDiv.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('MyLinks error:', error);
+                loadingDiv.style.display = 'none';
+                showNotification('Linklər yüklənmədi', 'error');
+            }
+        }
+
         // View link stats
         async function viewLinkStats(code) {
             currentStatsCode = code;
+            
+            const modal = new bootstrap.Modal(document.getElementById('statsModal'));
+            modal.show();
             
             try {
                 const response = await fetch(`/api/stats/${code}`);
@@ -639,85 +982,127 @@
                 
                 if (data.success) {
                     let statsHtml = `
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h4>${window.location.host}/${code}</h4>
-                            <p class="text-muted">${data.link.fullUrl}</p>
-                            
-                            <div class="row mt-4">
-                                <div class="col-md-6 mb-3">
-                                    <div class="card p-3 text-center">
-                                        <h2 class="text-primary">${data.stats.totalClicks}</h2>
-                                        <p class="mb-0">Ümumi Klik</p>
-                                    </div>
-                                </div>
-                                <div class="col-md-6 mb-3">
-                                    <div class="card p-3 text-center">
-                                        <h2 class="text-success">${data.stats.uniqueClicks}</h2>
-                                        <p class="mb-0">Unikal Klik</p>
-                                    </div>
+                    <div class="stats-container">
+                        <!-- Header -->
+                        <div class="row mb-4">
+                            <div class="col-md-8">
+                                <h4>${window.location.host}/${code}</h4>
+                                <p class="text-muted">${data.link.fullUrl}</p>
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary me-2">
+                                        <i class="bi bi-calendar me-1"></i>
+                                        ${new Date(data.link.createdAt).toLocaleDateString('az-AZ')}
+                                    </span>
+                                    ${data.link.qrCode ? `
+                                    <span class="badge bg-info me-2">
+                                        <i class="bi bi-qr-code me-1"></i>QR Kod
+                                    </span>` : ''}
                                 </div>
                             </div>
-                            
-                            <h5 class="mt-4">🌍 Ölkə Paylanması</h5>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Ölkə</th>
-                                            <th>Klik</th>
-                                            <th>Faiz</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>`;
-                    
-                    data.stats.countries.forEach(country => {
-                        const percentage = ((country.count / data.stats.totalClicks) * 100).toFixed(1);
-                        const flag = getFlagEmoji(country.countryCode);
-                        
-                        statsHtml += `
-                            <tr>
-                                <td>
-                                    <span class="me-2">${flag}</span>
-                                    ${country.country}
-                                </td>
-                                <td>${country.count}</td>
-                                <td>
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar" role="progressbar" 
-                                             style="width: ${percentage}%">
-                                            ${percentage}%
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>`;
-                    });
-                    
-                    statsHtml += `
-                                    </tbody>
-                                </table>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick="copyToClipboard('${window.location.origin}/${code}')">
+                                    <i class="bi bi-copy me-1"></i>Linki Kopyala
+                                </button>
                             </div>
                         </div>
                         
-                        <div class="col-md-6">
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <div class="card p-3">
-                                        <h5>📱 Qurğular</h5>
-                                        <canvas id="deviceChart" height="200"></canvas>
-                                    </div>
+                        <!-- Quick Stats -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3 col-6">
+                                <div class="card text-center p-3">
+                                    <h2 class="text-primary mb-0">${data.stats.totalClicks}</h2>
+                                    <small class="text-muted">Ümumi Klik</small>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <div class="card p-3">
-                                        <h5>🌐 Brauzerlər</h5>
-                                        <canvas id="browserChart" height="200"></canvas>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card text-center p-3">
+                                    <h2 class="text-success mb-0">${data.stats.uniqueClicks}</h2>
+                                    <small class="text-muted">Unikal Klik</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card text-center p-3">
+                                    <h2 class="text-info mb-0">${data.stats.countries.length}</h2>
+                                    <small class="text-muted">Ölkə</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="card text-center p-3">
+                                    <h2 class="text-warning mb-0">${Object.keys(data.stats.devices).length}</h2>
+                                    <small class="text-muted">Qurğu</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charts and Tables -->
+                        <div class="row g-4">
+                            <!-- Countries Table -->
+                            <div class="col-lg-6">
+                                <div class="card p-3">
+                                    <h5><i class="bi bi-globe me-2"></i>Ölkə Paylanması</h5>
+                                    <div class="table-responsive" style="max-height: 300px;">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Ölkə</th>
+                                                    <th>Klik</th>
+                                                    <th>Faiz</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>`;
+                    
+                    data.stats.countries.forEach(country => {
+                        const percentage = data.stats.totalClicks > 0 ? 
+                            ((country.count / data.stats.totalClicks) * 100).toFixed(1) : 0;
+                        const flag = getFlagEmoji(country.countryCode);
+                        
+                        statsHtml += `
+                                <tr>
+                                    <td>
+                                        <span class="country-flag">${flag}</span>
+                                        ${country.country}
+                                    </td>
+                                    <td><strong>${country.count}</strong></td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress progress-thin flex-grow-1 me-2">
+                                                <div class="progress-bar" style="width: ${percentage}%"></div>
+                                            </div>
+                                            <span>${percentage}%</span>
+                                        </div>
+                                    </td>
+                                </tr>`;
+                    });
+                    
+                    statsHtml += `
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
                             
-                            <div class="card p-3 mt-3">
-                                <h5>📅 Son Həftə Aktivlik</h5>
-                                <canvas id="dailyChart" height="150"></canvas>
+                            <!-- Device and Browser Charts -->
+                            <div class="col-lg-6">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <div class="card p-3">
+                                            <h6><i class="bi bi-phone me-2"></i>Qurğular</h6>
+                                            <canvas id="deviceChart" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card p-3">
+                                            <h6><i class="bi bi-browser-chrome me-2"></i>Brauzerlər</h6>
+                                            <canvas id="browserChart" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Daily Activity -->
+                                <div class="card p-3 mt-3">
+                                    <h6><i class="bi bi-calendar-week me-2"></i>Son Həftə</h6>
+                                    <canvas id="dailyChart" height="150"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>`;
@@ -725,26 +1110,31 @@
                     document.getElementById('statsContent').innerHTML = statsHtml;
                     
                     // Create charts
-                    createPieChart('deviceChart', data.stats.devices);
-                    createPieChart('browserChart', data.stats.browsers);
+                    createPieChart('deviceChart', data.stats.devices, ['#667eea', '#764ba2', '#10b981', '#f59e0b']);
+                    createPieChart('browserChart', data.stats.browsers, ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']);
                     createDailyChart('dailyChart', data.stats.daily);
-                    
-                    // Show modal
-                    const modal = new bootstrap.Modal(document.getElementById('statsModal'));
-                    modal.show();
+                } else {
+                    document.getElementById('statsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            Statistika yüklənmədi: ${data.error || 'Naməlum xəta'}
+                        </div>`;
                 }
             } catch (error) {
                 console.error('Stats error:', error);
-                showNotification('Statistika yüklənmədi', 'danger');
+                document.getElementById('statsContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Server xətası. Yenidən cəhd edin.
+                    </div>`;
             }
         }
 
         // Create pie chart
-        function createPieChart(canvasId, data) {
+        function createPieChart(canvasId, data, colors) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             const labels = Object.keys(data);
             const values = Object.values(data);
-            const colors = ['#667eea', '#764ba2', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
             
             new Chart(ctx, {
                 type: 'doughnut',
@@ -760,7 +1150,11 @@
                     responsive: true,
                     plugins: {
                         legend: {
-                            position: 'bottom'
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
                         }
                     }
                 }
@@ -772,7 +1166,7 @@
             const ctx = document.getElementById(canvasId).getContext('2d');
             const labels = data.map(item => {
                 const date = new Date(item.date);
-                return date.toLocaleDateString('az-AZ', { day: 'numeric', month: 'short' });
+                return date.toLocaleDateString('az-AZ', { weekday: 'short' });
             });
             const clicks = data.map(item => item.clicks);
             
@@ -802,54 +1196,181 @@
             });
         }
 
-        // Copy to clipboard
+        // Copy to clipboard helper
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text).then(() => {
-                showNotification('Link kopyalandı!', 'success');
+                showNotification('Kopyalandı!', 'success');
+            }).catch(err => {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showNotification('Kopyalandı!', 'success');
             });
         }
 
-        // Get flag emoji (simplified)
+        // Get flag emoji
         function getFlagEmoji(countryCode) {
-            if (!countryCode || countryCode === 'XX') return '🌍';
+            if (!countryCode || countryCode === 'XX' || countryCode === 'LOC') return '🌍';
             
-            // Simple mapping for common countries
-            const flags = {
-                'AZ': '🇦🇿', 'TR': '🇹🇷', 'US': '🇺🇸', 'GB': '🇬🇧',
-                'DE': '🇩🇪', 'FR': '🇫🇷', 'RU': '🇷🇺', 'CN': '🇨🇳'
-            };
+            const codePoints = countryCode.toUpperCase()
+                .split('')
+                .map(char => 127397 + char.charCodeAt());
             
-            return flags[countryCode] || '🌍';
+            return String.fromCodePoint(...codePoints);
         }
 
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const container = document.createElement('div');
-            container.className = `notification alert alert-${type} alert-dismissible fade show`;
-            container.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
-            `;
-            
-            document.body.appendChild(container);
-            
-            setTimeout(() => {
-                if (container.parentNode) {
-                    container.remove();
+        // Show QR code modal
+        async function showQRCode(code) {
+            try {
+                const response = await fetch(`/api/stats/${code}`);
+                const data = await response.json();
+                
+                if (data.success && data.link.qrCode) {
+                    const modalHtml = `
+                    <div class="modal fade" id="qrModal">
+                        <div class="modal-dialog modal-sm">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">QR Kod</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body text-center">
+                                    <img src="${data.link.qrCode}" alt="QR Code" class="img-fluid mb-3">
+                                    <p class="text-muted small">${window.location.host}/${code}</p>
+                                    <button class="btn btn-primary" onclick="downloadQR('${data.link.qrCode}', '${code}')">
+                                        <i class="bi bi-download me-1"></i>Yüklə
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                    // Remove existing modal
+                    const existingModal = document.getElementById('qrModal');
+                    if (existingModal) existingModal.remove();
+                    
+                    // Add new modal
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    
+                    // Show modal
+                    const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+                    modal.show();
+                } else {
+                    showNotification('QR kod tapılmadı', 'warning');
                 }
-            }, 3000);
+            } catch (error) {
+                console.error('QR error:', error);
+                showNotification('QR kod göstərilmədi', 'error');
+            }
+        }
+
+        // Download QR code
+        function downloadQR(dataUrl, filename) {
+            const link = document.createElement('a');
+            link.download = `qrcode-${filename}.png`;
+            link.href = dataUrl;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showNotification('QR kod yükləndi', 'success');
+        }
+
+        // Delete link
+        async function deleteLink(code) {
+            if (!confirm(`"${code}" linkini silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarıla bilməz.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/delete/${code}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userId })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showNotification('Link silindi', 'success');
+                    loadMyLinks();
+                    loadDashboard();
+                } else {
+                    showNotification(data.error || 'Silinmə xətası', 'error');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                showNotification('Server xətası', 'error');
+            }
+        }
+
+        // Search links
+        function searchLinks() {
+            const searchTerm = document.getElementById('searchLinks').value.toLowerCase();
+            const links = document.querySelectorAll('.link-item');
+            let found = 0;
+            
+            links.forEach(link => {
+                const text = link.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    link.style.display = 'block';
+                    found++;
+                } else {
+                    link.style.display = 'none';
+                }
+            });
+            
+            if (searchTerm && found === 0) {
+                showNotification('Heç bir link tapılmadı', 'warning');
+            }
+        }
+
+        // Copy stats
+        function copyStats() {
+            const statsText = `Link: ${window.location.origin}/${currentStatsCode}\n` +
+                            `Statistika: ${window.location.origin}/api/stats/${currentStatsCode}`;
+            copyToClipboard(statsText);
         }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
-            // Show create tab by default
-            showTab('create');
+            // Check last active tab
+            const lastTab = localStorage.getItem('lastTab') || 'create';
+            showTab(lastTab);
             
-            // Auto-focus URL input
-            document.getElementById('fullUrl').focus();
+            // Auto-focus URL input if on create tab
+            if (lastTab === 'create') {
+                setTimeout(() => {
+                    const urlInput = document.getElementById('fullUrl');
+                    if (urlInput) urlInput.focus();
+                }, 100);
+            }
             
             // Load initial data
             loadDashboard();
+            
+            // Add enter key support for create form
+            document.getElementById('fullUrl').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') createLink();
+            });
+            
+            // Add enter key support for search
+            document.getElementById('searchLinks').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') searchLinks();
+            });
+            
+            // Show welcome message
+            setTimeout(() => {
+                if (!localStorage.getItem('welcomeShown')) {
+                    showNotification('aglink.pro-ya xoş gəldiniz! Professional link qısaldıcı.', 'info', 5000);
+                    localStorage.setItem('welcomeShown', 'true');
+                }
+            }, 1000);
         });
     </script>
 </body>
