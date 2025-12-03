@@ -1,16 +1,18 @@
 {
-  "name": "aglink-pro-ultra-fast",
-  "version": "3.0.0",
-  "description": "Ultra Fast Link Shortener",
+  "name": "aglink-pro-full",
+  "version": "4.0.0",
+  "description": "Full Featured Link Shortener with Analytics",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "mongoose": "^8.0.0",
     "shortid": "^2.2.16",
     "qrcode": "^1.5.3",
-    "axios": "^1.6.0"
+    "uuid": "^9.0.0",
+    "dotenv": "^16.0.0"
   },
   "engines": {
     "node": ">=18.0.0"
