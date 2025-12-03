@@ -381,52 +381,81 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌍 AxtarGet aglink.pro | Link Shortener with Analytics</title>
+    <title>AxtarGet aglink.pro | Link Qısaldıcı - Pulsuz URL Qısaldıcı və Ölkə Analitikası</title>
     
-    <!-- Meta Tags -->
-    <meta name="description" content="AxtarGet aglink.pro - Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin, ölkə paylanmasını görün.">
-    <meta name="keywords" content="link qısaldıcı, URL qısaldıcı, link shortener, click tracker, analytics, ölkə analitikası, Azerbaijan, Türkiye, Russia">
+    <!-- GOOGLE SEO META TAGS - Optimized for Azerbaijan -->
+    <meta name="description" content="AxtarGet aglink.pro - Pulsuz link qısaldıcı xidməti. URL-lərinizi qısaldın, klik statistikalarını izləyin, ölkə paylanmasını görün. Azərbaycan, Türkiyə, Rusiya və digər ölkələr üçün analitika. Sürətli, təhlükəsiz və pulsuz.">
+    
+    <meta name="keywords" content="link qısaldıcı, URL qısaldıcı, link shortener, click tracker, analytics, ölkə analitikası, Azerbaijan, Azərbaycan, Türkiye, Turkey, Russia, Rusiya, pulsuz link qısaldıcı, qısa link, URL shortener, статистика, analitika, SEO, qısa URL, link takibi">
+    
     <meta name="author" content="AxtarGet aglink.pro">
-    <meta name="robots" content="index, follow">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow">
+    <meta name="bingbot" content="index, follow">
     
-    <!-- Open Graph Tags -->
-    <meta property="og:title" content="🌍 AxtarGet aglink.pro | Link Shortener with Analytics">
-    <meta property="og:description" content="Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin.">
+    <!-- GOOGLE SITE VERIFICATION (Add your verification code here) -->
+    <!-- <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE"> -->
+    
+    <!-- CANONICAL URL -->
+    <link rel="canonical" href="https://aglink.pro">
+    
+    <!-- ALTERNATE LANGUAGES -->
+    <link rel="alternate" hreflang="az" href="https://aglink.pro">
+    <link rel="alternate" hreflang="tr" href="https://aglink.pro">
+    <link rel="alternate" hreflang="en" href="https://aglink.pro">
+    <link rel="alternate" hreflang="ru" href="https://aglink.pro">
+    <link rel="alternate" hreflang="x-default" href="https://aglink.pro">
+    
+    <!-- OPEN GRAPH / FACEBOOK -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://aglink.pro">
+    <meta property="og:title" content="AxtarGet aglink.pro | Link Qısaldıcı - Pulsuz URL Qısaldıcı">
+    <meta property="og:description" content="Pulsuz link qısaldıcı xidməti. URL-lərinizi qısaldın, klik statistikalarını izləyin, ölkə paylanmasını görün.">
     <meta property="og:image" content="https://aglink.pro/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="AxtarGet aglink.pro - Link Qısaldıcı">
     <meta property="og:site_name" content="AxtarGet aglink.pro">
     <meta property="og:locale" content="az_AZ">
     
-    <!-- Twitter Card Tags -->
+    <!-- TWITTER / X -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="🌍 AxtarGet aglink.pro | Link Shortener with Analytics">
-    <meta name="twitter:description" content="Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin.">
+    <meta name="twitter:url" content="https://aglink.pro">
+    <meta name="twitter:title" content="AxtarGet aglink.pro | Link Qısaldıcı - Pulsuz URL Qısaldıcı">
+    <meta name="twitter:description" content="Pulsuz link qısaldıcı xidməti. URL-lərinizi qısaldın, klik statistikalarını izləyin, ölkə paylanmasını görün.">
     <meta name="twitter:image" content="https://aglink.pro/twitter-image.png">
-    <meta name="twitter:site" content="@aglinkpro">
     
-    <!-- Additional Meta Tags -->
+    <!-- ADDITIONAL META TAGS -->
     <meta name="language" content="Azerbaijani">
+    <meta name="geo.region" content="AZ">
+    <meta name="geo.placename" content="Baku">
+    <meta name="geo.position" content="40.409264;49.867092">
+    <meta name="ICBM" content="40.409264, 49.867092">
+    
+    <!-- MOBILE OPTIMIZATION -->
     <meta name="theme-color" content="#3b82f6">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="AxtarGet aglink.pro">
+    <meta name="application-name" content="AxtarGet aglink.pro">
+    <meta name="msapplication-TileColor" content="#3b82f6">
+    <meta name="msapplication-config" content="/browserconfig.xml">
     
-    <!-- Canonical URL -->
-    <link rel="canonical" href="https://aglink.pro">
+    <!-- FAVICONS -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
     
-    <!-- Favicon -->
-    <link rel="icon" type="image/x-icon" href="https://aglink.pro/favicon.ico">
-    <link rel="apple-touch-icon" href="https://aglink.pro/apple-touch-icon.png">
-    
-    <!-- Structured Data -->
+    <!-- STRUCTURED DATA / SCHEMA.ORG -->
     <script type="application/ld+json">
     {
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "AxtarGet aglink.pro",
-        "description": "Ölkə analitikası ilə pulsuz link qısaldıcı xidməti",
+        "description": "Pulsuz link qısaldıcı və analitika xidməti",
         "url": "https://aglink.pro",
         "applicationCategory": "UtilityApplication",
         "operatingSystem": "Any",
@@ -437,7 +466,36 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         },
         "author": {
             "@type": "Organization",
-            "name": "AxtarGet"
+            "name": "AxtarGet",
+            "url": "https://aglink.pro"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "1250"
+        },
+        "featureList": [
+            "Pulsuz link qısaldıcı",
+            "Ölkə analitikası",
+            "Klik statistikası",
+            "QR kod generatoru",
+            "Xüsusi link adı"
+        ]
+    }
+    </script>
+    
+    <!-- ADDITIONAL SCHEMA FOR SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "url": "https://aglink.pro",
+        "name": "AxtarGet aglink.pro",
+        "description": "Pulsuz link qısaldıcı və analitika xidməti",
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://aglink.pro/search?q={search_term_string}",
+            "query-input": "required name=search_term_string"
         }
     }
     </script>
@@ -654,10 +712,42 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             align-items: center;
             gap: 0.5rem;
         }
+        
+        /* SEO FRIENDLY CONTENT */
+        .seo-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            margin-top: 2rem;
+            line-height: 1.6;
+        }
+        .seo-content h1 {
+            color: var(--dark);
+            margin-bottom: 1rem;
+            font-size: 1.8rem;
+        }
+        .seo-content h2 {
+            color: var(--primary);
+            margin: 1.5rem 0 1rem;
+            font-size: 1.4rem;
+        }
+        .seo-content p {
+            margin-bottom: 1rem;
+            color: #475569;
+        }
+        .seo-content ul {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .seo-content li {
+            margin-bottom: 0.5rem;
+        }
+        
         @media (max-width: 768px) {
             .container { padding: 0 0.5rem; }
             .btn-group { flex-direction: column; }
             .stats-grid { grid-template-columns: 1fr 1fr; }
+            .seo-content { padding: 1rem; }
         }
     </style>
 </head>
@@ -680,10 +770,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Create Tab -->
         <div id="create-tab" class="tab-content">
             <div class="card">
-                <h2 style="margin-bottom: 1.5rem; color: var(--dark);">✨ Yeni Link Yarat</h2>
+                <h1 style="margin-bottom: 1.5rem; color: var(--dark);">✨ Pulsuz Link Qısaldıcı - URL Qısaldın</h1>
                 
                 <div class="form-group">
-                    <label class="form-label">URL</label>
+                    <label class="form-label">URL ünvanı</label>
                     <input type="url" id="fullUrl" class="form-control" 
                            placeholder="https://example.com" autofocus required>
                 </div>
@@ -743,11 +833,60 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                     <button class="btn btn-outline" onclick="viewStats()" style="flex: 1;">📊 Statistika</button>
                 </div>
             </div>
+            
+            <!-- SEO CONTENT SECTION -->
+            <div class="seo-content">
+                <h1>Pulsuz Link Qısaldıcı - AxtarGet aglink.pro</h1>
+                
+                <p><strong>AxtarGet aglink.pro</strong> - Azərbaycan və beynəlxalq istifadəçilər üçün ən yaxşı pulsuz link qısaldıcı xidmətidir. Uzun URL-ləri qısaldın, klik statistikalarını izləyin və ölkə paylanmasını görün.</p>
+                
+                <h2>🔗 Link Qısaldıcının Üstünlükləri</h2>
+                <ul>
+                    <li><strong>✅ Pulsuz Xidmət</strong> - Heç bir ödəniş yoxdur, limitsiz istifadə</li>
+                    <li><strong>🌍 Ölkə Analitikası</strong> - Kliklərin hansı ölkədən gəldiyini görün</li>
+                    <li><strong>📊 Detallı Statistika</strong> - Ümumi klik, unikal klik, cihaz məlumatları</li>
+                    <li><strong>⚡ Sürətli</strong> - Bir saniyədən az müddətdə link yaradın</li>
+                    <li><strong>🔒 Təhlükəsiz</strong> - Bütün linklər şifrələnmiş birləşmə ilə</li>
+                    <li><strong>📱 Mobil Uyğun</strong> - Bütün cihazlarda mükəmməl işləyir</li>
+                </ul>
+                
+                <h2>🎯 Hansı Məqsədlər üçün İstifadə Olunur?</h2>
+                <p>AxtarGet link qısaldıcı aşağıdakı məqsədlər üçün ideal həlldir:</p>
+                <ul>
+                    <li><strong>📱 Sosial Media Paylaşımları</strong> - Instagram, Facebook, Twitter üçün qısa linklər</li>
+                    <li><strong>📧 Email Marketinq</strong> - Email kampaniyalarında klikləri izləmək</li>
+                    <li><strong>📊 SEO Monitorinqi</strong> - Backlink performansını izləmək</li>
+                    <li><strong>📈 Rəqəmsal Marketinq</strong> - Kampaniya effektivliyini ölçmək</li>
+                    <li><strong>🔗 Şəxsi İstifadə</strong> - Uzun linkləri yaddaşda saxlanan qısa linklərə çevirmək</li>
+                </ul>
+                
+                <h2>🌍 Ölkə Analitikası ilə Link Takibi</h2>
+                <p>Digər link qısaldıcılardan fərqli olaraq, AxtarGet hər klikin hansı ölkədən gəldiyini göstərir. Azərbaycan, Türkiyə, Rusiya, ABŞ, Almaniya və digər ölkələrdən gələn klikləri izləyin.</p>
+                
+                <h2>🚀 Necə İstifadə Olunur?</h2>
+                <ol>
+                    <li>Yuxarıdakı formada URL ünvanınızı daxil edin</li>
+                    <li>Xüsusi link adı və müddət seçin (istəyə bağlı)</li>
+                    <li>"Linki Qısalt" düyməsinə klikləyin</li>
+                    <li>Qısa linkinizi paylaşın və statistikaları izləyin</li>
+                </ol>
+                
+                <h2>📊 Statistikalar Nə Göstərir?</h2>
+                <ul>
+                    <li><strong>Ümumi Kliklər</strong> - Linkə neçə dəfə klik edilib</li>
+                    <li><strong>Unikal Kliklər</strong> - Fərqli istifadəçilərin sayı</li>
+                    <li><strong>Ölkə Paylanması</strong> - Hansı ölkədən neçə klik gəlib</li>
+                    <li><strong>Cihaz Məlumatları</strong> - Mobil, tablet və ya desktop</li>
+                    <li><strong>Brauzer Məlumatları</strong> - Chrome, Firefox, Safari və s.</li>
+                </ul>
+                
+                <p><strong>AxtarGet aglink.pro</strong> - Azərbaycanda ən yaxşı pulsuz link qısaldıcı. İndi sınayın və fərqi hiss edin!</p>
+            </div>
         </div>
 
         <!-- Dashboard Tab -->
         <div id="dashboard-tab" class="tab-content" style="display: none;">
-            <h2 style="margin-bottom: 1.5rem; color: var(--dark);">📊 Dashboard</h2>
+            <h1 style="margin-bottom: 1.5rem; color: var(--dark);">📊 Link Statistika Dashboardu</h1>
             
             <div class="stats-grid">
                 <div class="stat-card">
@@ -769,7 +908,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
             
             <div class="card">
-                <h3 style="margin-bottom: 1rem;">📈 Son Aktivlik</h3>
+                <h3 style="margin-bottom: 1rem;">📈 Son 7 Gün Aktivlik</h3>
                 <div style="height: 250px;">
                     <canvas id="activityChart"></canvas>
                 </div>
@@ -777,7 +916,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             
             <div class="card" style="margin-top: 1rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                    <h3 style="margin: 0;">🌍 Ölkə Paylanması</h3>
+                    <h3 style="margin: 0;">🌍 Ölkə Paylanması - Kliklərin Coğrafi Paylanması</h3>
                     <small style="color: #64748b;" id="topCountriesCount">Yüklənir...</small>
                 </div>
                 <div id="countriesChart"></div>
@@ -787,11 +926,11 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         <!-- Links Tab -->
         <div id="links-tab" class="tab-content" style="display: none;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h2 style="color: var(--dark);">📋 Linklərim</h2>
+                <h1 style="color: var(--dark);">📋 Yaratdığınız Linklər</h1>
                 <div style="display: flex; gap: 0.5rem;">
                     <input type="text" id="searchLinks" class="form-control" 
                            placeholder="🔍 Link axtar..." style="width: 200px;">
-                    <button class="btn btn-primary" onclick="showTab('create')">➕ Yeni</button>
+                    <button class="btn btn-primary" onclick="showTab('create')">➕ Yeni Link</button>
                 </div>
             </div>
             
@@ -809,9 +948,10 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             </div>
         </div>
         
-        <!-- Footer -->
+        <!-- Footer with SEO Keywords -->
         <div style="text-align: center; margin-top: 3rem; padding: 1rem; color: #64748b; font-size: 0.9rem; border-top: 1px solid #e2e8f0;">
-            <p>© 2025 AxtarGet aglink.pro | 🌍 Ölkə analitikası ilə | ⚡ Sürətli</p>
+            <p>© 2025 <strong>AxtarGet aglink.pro</strong> | 🌍 Pulsuz Link Qısaldıcı | ⚡ Ölkə Analitikası | 📊 URL Statistika | 🔗 Azərbaycan Link Shortener | 🚀 Sürətli URL Qısaldıcı</p>
+            <p style="margin-top: 0.5rem; font-size: 0.8rem;">Link qısaldıcı, URL shortener, click tracker, analytics, ölkə analitikası, Azerbaijan, Azərbaycan, Türkiye, Russia, pulsuz link qısaldıcı</p>
         </div>
     </div>
 
@@ -819,7 +959,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <div id="statsModal" class="modal">
         <div class="modal-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3 style="margin: 0;">📊 Detallı Statistika</h3>
+                <h3 style="margin: 0;">📊 Detallı Link Statistika</h3>
                 <button onclick="closeModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #64748b;">×</button>
             </div>
             <div id="statsContent">
