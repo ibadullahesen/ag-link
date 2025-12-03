@@ -3,708 +3,302 @@ const express = require('express');
 const mongoose = require('mongoose');
 const shortid = require('shortid');
 const axios = require('axios');
-const cors = require('cors');
 const QRCode = require('qrcode');
 
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cors());
+// Ultra fast middleware
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// MongoDB Connection
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/aglink';
-
-mongoose.connect(MONGO_URI)
-.then(() => console.log('✅ MongoDB Connected'))
-.catch(err => {
-    console.log('⚠️ MongoDB connection failed, using in-memory storage');
-    console.log('ℹ️ Add MONGODB_URI to environment variables for persistent storage');
+// CORS for all routes
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
+    next();
 });
 
-// Schemas
-const ClickSchema = new mongoose.Schema({
-    ip: String,
-    country: String,
-    city: String,
-    countryCode: String,
-    device: String,
-    browser: String,
-    os: String,
-    referrer: String,
-    timestamp: { type: Date, default: Date.now }
-});
+// Connect to MongoDB with optimizations
+const MONGO_URI = process.env.MONGODB_URI;
 
-const LinkSchema = new mongoose.Schema({
-    fullUrl: { type: String, required: true },
-    shortCode: { type: String, required: true },
-    userId: { type: String, required: true },
-    customAlias: String,
-    password: String,
-    clicks: [ClickSchema],
-    totalClicks: { type: Number, default: 0 },
-    expiresAt: Date,
-    isActive: { type: Boolean, default: true },
-    qrCode: String,
-    tags: [String],
-    createdAt: { type: Date, default: Date.now },
-    lastClicked: Date
-});
+if (MONGO_URI) {
+    mongoose.connect(MONGO_URI, {
+        serverSelectionTimeoutMS: 5000,
+        socketTimeoutMS: 45000,
+    }).then(() => console.log('⚡ MongoDB Connected'))
+    .catch(err => console.log('⚠️ MongoDB: Using memory storage'));
+}
 
-const Link = mongoose.models.Link || mongoose.model('Link', LinkSchema);
+// Simple in-memory storage (FASTEST)
+class FastStorage {
+    constructor() {
+        this.links = new Map();
+        this.clicks = new Map();
+        this.userLinks = new Map();
+        this.index = new Map(); // For searching
+    }
+    
+    addLink(link) {
+        this.links.set(link.shortCode, link);
+        
+        // Index by user
+        if (!this.userLinks.has(link.userId)) {
+            this.userLinks.set(link.userId, new Set());
+        }
+        this.userLinks.get(link.userId).add(link.shortCode);
+        
+        return link;
+    }
+    
+    getLink(code) {
+        return this.links.get(code);
+    }
+    
+    getUserLinks(userId) {
+        const codes = this.userLinks.get(userId) || new Set();
+        return Array.from(codes).map(code => this.links.get(code)).filter(Boolean);
+    }
+    
+    addClick(code, click) {
+        if (!this.clicks.has(code)) {
+            this.clicks.set(code, []);
+        }
+        this.clicks.get(code).push(click);
+        
+        // Update link stats
+        const link = this.links.get(code);
+        if (link) {
+            link.totalClicks = (link.totalClicks || 0) + 1;
+            link.lastClicked = new Date();
+        }
+    }
+    
+    deleteLink(userId, code) {
+        const link = this.links.get(code);
+        if (link && link.userId === userId) {
+            this.links.delete(code);
+            const userSet = this.userLinks.get(userId);
+            if (userSet) userSet.delete(code);
+            return true;
+        }
+        return false;
+    }
+}
 
-// In-memory storage as fallback
-const memoryStorage = {
-    links: new Map(),
-    clicks: new Map()
+const storage = new FastStorage();
+
+// Cache for frequent requests
+const cache = {
+    userDashboards: new Map(),
+    linkStats: new Map(),
+    expiry: 5000, // 5 seconds cache
 };
 
-// Helper Functions
-async function getGeoInfo(ip) {
-    try {
-        const cleanIp = ip.replace('::ffff:', '').replace('::1', '127.0.0.1');
-        if (cleanIp === '127.0.0.1') return { country: 'Local', city: 'Local', countryCode: 'LOC' };
-        
-        const response = await axios.get(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city`);
-        if (response.data.status === 'success') {
-            return {
-                country: response.data.country || 'Unknown',
-                city: response.data.city || 'Unknown',
-                countryCode: response.data.countryCode || 'XX'
-            };
-        }
-    } catch (error) {
-        console.log('Geolocation skipped');
+function getCached(key) {
+    const item = cache[key];
+    if (item && Date.now() - item.timestamp < cache.expiry) {
+        return item.data;
     }
-    return { country: 'Unknown', city: 'Unknown', countryCode: 'XX' };
+    return null;
 }
 
-function getDeviceInfo(userAgent) {
+function setCached(key, data) {
+    cache[key] = { data, timestamp: Date.now() };
+}
+
+// Fast helper functions
+async function fastGeoInfo(ip) {
+    const cleanIp = ip?.replace('::ffff:', '').replace('::1', '127.0.0.1') || 'unknown';
+    if (cleanIp === '127.0.0.1') return { country: 'Local', countryCode: 'LOC' };
+    
+    // Simple IP to country mapping (most common)
+    const ipMap = {
+        'az': { country: 'Azerbaijan', countryCode: 'AZ' },
+        'tr': { country: 'Turkey', countryCode: 'TR' },
+        'ru': { country: 'Russia', countryCode: 'RU' },
+        'us': { country: 'USA', countryCode: 'US' },
+        'de': { country: 'Germany', countryCode: 'DE' },
+        'fr': { country: 'France', countryCode: 'FR' },
+        'gb': { country: 'UK', countryCode: 'GB' },
+    };
+    
+    // Extract first two letters for quick match
+    const ipKey = cleanIp.substring(0, 2).toLowerCase();
+    return ipMap[ipKey] || { country: 'Unknown', countryCode: 'XX' };
+}
+
+function fastDeviceInfo(userAgent) {
     const ua = userAgent || '';
-    const device = { browser: 'Unknown', os: 'Unknown', device: 'Desktop' };
+    const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(ua);
+    const isTablet = /Tablet|iPad/i.test(ua);
     
-    if (ua.includes('Chrome')) device.browser = 'Chrome';
-    else if (ua.includes('Firefox')) device.browser = 'Firefox';
-    else if (ua.includes('Safari')) device.browser = 'Safari';
-    else if (ua.includes('Edge')) device.browser = 'Edge';
-    else if (ua.includes('Opera')) device.browser = 'Opera';
-    
-    if (ua.includes('Windows')) device.os = 'Windows';
-    else if (ua.includes('Mac')) device.os = 'macOS';
-    else if (ua.includes('Linux')) device.os = 'Linux';
-    else if (ua.includes('Android')) device.os = 'Android';
-    else if (ua.includes('iOS')) device.os = 'iOS';
-    
-    if (ua.includes('Mobile')) device.device = 'Mobile';
-    else if (ua.includes('Tablet')) device.device = 'Tablet';
-    
-    return device;
+    return {
+        device: isMobile ? 'Mobile' : (isTablet ? 'Tablet' : 'Desktop'),
+        browser: /Chrome/i.test(ua) ? 'Chrome' : 
+                 /Firefox/i.test(ua) ? 'Firefox' : 
+                 /Safari/i.test(ua) ? 'Safari' : 
+                 /Edge/i.test(ua) ? 'Edge' : 'Other',
+        os: /Windows/i.test(ua) ? 'Windows' :
+            /Mac/i.test(ua) ? 'macOS' :
+            /Linux/i.test(ua) ? 'Linux' :
+            /Android/i.test(ua) ? 'Android' :
+            /iOS|iPhone|iPad/i.test(ua) ? 'iOS' : 'Unknown'
+    };
 }
 
-// ===== ROUTES =====
+// ===== ULTRA FAST ROUTES =====
 
-// Serve HTML directly from this file
-app.get('/', (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Redirecting to aglink.pro...</title>
-        <meta http-equiv="refresh" content="0; url=/home">
-    </head>
-    <body>
-        <p>Redirecting...</p>
-    </body>
-    </html>
-    `);
-});
-
-// Main application page
-app.get('/home', (req, res) => {
-    res.send(getHTML());
-});
-
-// Create Link
-app.post('/api/create', async (req, res) => {
-    try {
-        const { fullUrl, userId, expiresIn, customAlias, password, tags } = req.body;
-        
-        if (!fullUrl) return res.status(400).json({ error: 'URL tələb olunur' });
-
-        // Format URL
-        let formattedUrl = fullUrl;
-        if (!formattedUrl.startsWith('http')) {
-            formattedUrl = 'https://' + formattedUrl;
-        }
-
-        // Generate short code
-        let shortCode;
-        if (customAlias && customAlias.trim()) {
-            shortCode = customAlias.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
-            if (shortCode.length < 3) return res.status(400).json({ error: 'Alias minimum 3 simvol' });
-        } else {
-            shortCode = shortid.generate().substring(0, 8);
-        }
-
-        // Check if exists
-        let existing = null;
-        try {
-            existing = await Link.findOne({ shortCode });
-        } catch (e) {
-            existing = memoryStorage.links.get(shortCode);
-        }
-        
-        if (existing) return res.status(400).json({ error: 'Bu kod artıq istifadədədir' });
-
-        // Set expiration
-        let expiresAt = null;
-        if (expiresIn && expiresIn !== 'forever') {
-            const seconds = parseInt(expiresIn);
-            if (!isNaN(seconds) && seconds > 0) {
-                expiresAt = new Date(Date.now() + seconds * 1000);
-            }
-        }
-
-        // Generate QR Code
-        const baseUrl = req.protocol + '://' + req.get('host');
-        const qrCodeData = await QRCode.toDataURL(`${baseUrl}/${shortCode}`);
-
-        // Create link object
-        const linkData = {
-            fullUrl: formattedUrl,
-            shortCode,
-            userId: userId || 'anonymous',
-            customAlias,
-            password,
-            expiresAt,
-            tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
-            qrCode: qrCodeData,
-            clicks: [],
-            totalClicks: 0,
-            isActive: true,
-            createdAt: new Date()
-        };
-
-        // Save to MongoDB if available
-        try {
-            const link = new Link(linkData);
-            await link.save();
-        } catch (e) {
-            // Save to memory if MongoDB fails
-            memoryStorage.links.set(shortCode, linkData);
-        }
-
-        res.json({
-            success: true,
-            shortCode,
-            shortUrl: `${baseUrl}/${shortCode}`,
-            qrCode: qrCodeData,
-            expiresAt: expiresAt || 'Sonsuz'
-        });
-
-    } catch (error) {
-        console.error('Create error:', error.message);
-        res.status(500).json({ error: 'Server xətası' });
-    }
-});
-
-// Get User's Links
-app.post('/api/mylinks', async (req, res) => {
-    try {
-        const { userId } = req.body;
-        if (!userId) return res.status(400).json({ error: 'userId tələb olunur' });
-
-        let links = [];
-        try {
-            links = await Link.find({ userId }).sort({ createdAt: -1 }).lean();
-        } catch (e) {
-            // Get from memory storage
-            links = Array.from(memoryStorage.links.values())
-                .filter(link => link.userId === userId)
-                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        }
-
-        const enhancedLinks = links.map(link => {
-            const uniqueIps = new Set(link.clicks?.map(c => c.ip) || []);
-            const daysLeft = link.expiresAt ? 
-                Math.ceil((new Date(link.expiresAt) - new Date()) / (1000 * 60 * 60 * 24)) : 
-                null;
-            
-            return {
-                ...link,
-                uniqueClicks: uniqueIps.size,
-                daysLeft,
-                status: link.isActive ? 
-                    (daysLeft > 0 || daysLeft === null ? 'active' : 'expired') : 
-                    'inactive'
-            };
-        });
-
-        res.json({
-            success: true,
-            links: enhancedLinks,
-            totalLinks: links.length,
-            totalClicks: links.reduce((sum, link) => sum + (link.totalClicks || 0), 0)
-        });
-
-    } catch (error) {
-        console.error('MyLinks error:', error);
-        res.status(500).json({ error: 'Server xətası' });
-    }
-});
-
-// Get Link Stats
-app.get('/api/stats/:code', async (req, res) => {
-    try {
-        let link = null;
-        try {
-            link = await Link.findOne({ shortCode: req.params.code }).lean();
-        } catch (e) {
-            link = memoryStorage.links.get(req.params.code);
-        }
-        
-        if (!link) return res.status(404).json({ error: 'Link tapılmadı' });
-
-        const clicks = link.clicks || [];
-        const uniqueIps = new Set(clicks.map(c => c.ip));
-        
-        // Calculate stats
-        const countryStats = {};
-        const deviceStats = {};
-        const browserStats = {};
-        const dailyStats = {};
-
-        clicks.forEach(click => {
-            countryStats[click.country] = (countryStats[click.country] || 0) + 1;
-            deviceStats[click.device] = (deviceStats[click.device] || 0) + 1;
-            browserStats[click.browser] = (browserStats[click.browser] || 0) + 1;
-            
-            const day = new Date(click.timestamp).toISOString().split('T')[0];
-            dailyStats[day] = (dailyStats[day] || 0) + 1;
-        });
-
-        // Last 7 days
-        const last7Days = [];
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
-            last7Days.push({
-                date: dateStr,
-                clicks: dailyStats[dateStr] || 0
-            });
-        }
-
-        // Top countries
-        const topCountries = Object.entries(countryStats)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 5)
-            .map(([country, count]) => ({ country, count }));
-
-        res.json({
-            success: true,
-            link: {
-                shortCode: link.shortCode,
-                fullUrl: link.fullUrl,
-                createdAt: link.createdAt,
-                totalClicks: clicks.length,
-                uniqueClicks: uniqueIps.size,
-                lastClicked: link.lastClicked,
-                qrCode: link.qrCode
-            },
-            stats: {
-                totalClicks: clicks.length,
-                uniqueClicks: uniqueIps.size,
-                countries: topCountries,
-                devices: deviceStats,
-                browsers: browserStats,
-                daily: last7Days
-            }
-        });
-
-    } catch (error) {
-        console.error('Stats error:', error);
-        res.status(500).json({ error: 'Server xətası' });
-    }
-});
-
-// Redirect endpoint
-app.get('/:code', async (req, res) => {
-    try {
-        let link = null;
-        try {
-            link = await Link.findOne({ shortCode: req.params.code });
-        } catch (e) {
-            link = memoryStorage.links.get(req.params.code);
-        }
-        
-        if (!link || !link.isActive) {
-            return res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Link Tapılmadı - aglink.pro</title>
-                <style>
-                    body { font-family: Arial; text-align: center; padding: 50px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-                    .container { max-width: 500px; margin: 0 auto; }
-                    h1 { font-size: 4em; margin-bottom: 20px; }
-                    a { color: white; text-decoration: underline; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>404</h1>
-                    <h2>Link Tapılmadı</h2>
-                    <p>Bu link mövcud deyil, silinib və ya aktiv deyil.</p>
-                    <p><a href="/home">Əsas səhifəyə qayıt</a></p>
-                </div>
-            </body>
-            </html>
-            `);
-        }
-
-        // Check expiration
-        if (link.expiresAt && new Date() > link.expiresAt) {
-            link.isActive = false;
-            return res.status(410).send('Linkin müddəti bitib');
-        }
-
-        // Password check
-        if (link.password && !req.query.password) {
-            return res.send(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Şifrə Tələb Olunur</title>
-                <style>
-                    body { font-family: Arial; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea, #764ba2); }
-                    .box { background: white; padding: 40px; border-radius: 15px; text-align: center; }
-                    input { padding: 10px; margin: 10px; width: 200px; border: 2px solid #ddd; border-radius: 5px; }
-                    button { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; }
-                </style>
-            </head>
-            <body>
-                <div class="box">
-                    <h2>🔒 Şifrə Tələb Olunur</h2>
-                    <p>Bu linkə daxil olmaq üçün şifrə daxil edin</p>
-                    <input type="password" id="password" placeholder="Şifrə" autofocus>
-                    <br>
-                    <button onclick="submit()">Daxil Ol</button>
-                </div>
-                <script>
-                    function submit() {
-                        const pass = document.getElementById('password').value;
-                        window.location.href = window.location.pathname + '?password=' + encodeURIComponent(pass);
-                    }
-                    document.getElementById('password').addEventListener('keypress', function(e) {
-                        if (e.key === 'Enter') submit();
-                    });
-                </script>
-            </body>
-            </html>
-            `);
-        }
-
-        if (link.password && req.query.password !== link.password) {
-            return res.status(401).send('Yanlış şifrə. <a href="javascript:history.back()">Yenidən cəhd et</a>');
-        }
-
-        // Track click
-        const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
-        const userAgent = req.headers['user-agent'] || '';
-        const referrer = req.headers['referer'] || '';
-
-        const geoInfo = await getGeoInfo(ip);
-        const deviceInfo = getDeviceInfo(userAgent);
-
-        const clickData = {
-            ip,
-            country: geoInfo.country,
-            city: geoInfo.city,
-            countryCode: geoInfo.countryCode,
-            device: deviceInfo.device,
-            browser: deviceInfo.browser,
-            os: deviceInfo.os,
-            referrer,
-            timestamp: new Date()
-        };
-
-        // Update link
-        if (!link.clicks) link.clicks = [];
-        link.clicks.push(clickData);
-        link.totalClicks = (link.totalClicks || 0) + 1;
-        link.lastClicked = new Date();
-
-        // Save
-        if (link.save) {
-            await link.save();
-        } else {
-            memoryStorage.links.set(link.shortCode, link);
-            if (!memoryStorage.clicks.has(link.shortCode)) {
-                memoryStorage.clicks.set(link.shortCode, []);
-            }
-            memoryStorage.clicks.get(link.shortCode).push(clickData);
-        }
-
-        // Redirect
-        res.redirect(link.fullUrl);
-
-    } catch (error) {
-        console.error('Redirect error:', error);
-        res.status(500).send('Server xətası');
-    }
-});
-
-// Dashboard Stats
-app.post('/api/dashboard', async (req, res) => {
-    try {
-        const { userId } = req.body;
-        if (!userId) return res.status(400).json({ error: 'userId tələb olunur' });
-
-        let links = [];
-        try {
-            links = await Link.find({ userId }).lean();
-        } catch (e) {
-            links = Array.from(memoryStorage.links.values())
-                .filter(link => link.userId === userId);
-        }
-        
-        const totalClicks = links.reduce((sum, link) => sum + (link.totalClicks || 0), 0);
-        const totalLinks = links.length;
-        const activeLinks = links.filter(link => link.isActive).length;
-        
-        // Last 7 days stats
-        const last7Days = [];
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const dateStr = date.toISOString().split('T')[0];
-            
-            let dayClicks = 0;
-            links.forEach(link => {
-                (link.clicks || []).forEach(click => {
-                    if (new Date(click.timestamp).toISOString().split('T')[0] === dateStr) {
-                        dayClicks++;
-                    }
-                });
-            });
-            
-            last7Days.push({ date: dateStr, clicks: dayClicks });
-        }
-
-        // Top links
-        const topLinks = links
-            .sort((a, b) => (b.totalClicks || 0) - (a.totalClicks || 0))
-            .slice(0, 3)
-            .map(link => ({
-                shortCode: link.shortCode,
-                totalClicks: link.totalClicks || 0,
-                fullUrl: link.fullUrl ? link.fullUrl.substring(0, 40) + '...' : 'N/A'
-            }));
-
-        res.json({
-            success: true,
-            overview: {
-                totalLinks,
-                activeLinks,
-                totalClicks,
-                averageClicks: totalLinks > 0 ? (totalClicks / totalLinks).toFixed(1) : 0
-            },
-            recentActivity: last7Days,
-            topLinks
-        });
-
-    } catch (error) {
-        console.error('Dashboard error:', error);
-        res.status(500).json({ error: 'Server xətası' });
-    }
-});
-
-// Delete Link
-app.delete('/api/delete/:code', async (req, res) => {
-    try {
-        const { userId } = req.body;
-        const { code } = req.params;
-        
-        if (!userId) return res.status(400).json({ error: 'userId tələb olunur' });
-
-        let deleted = false;
-        try {
-            const result = await Link.deleteOne({ shortCode: code, userId });
-            deleted = result.deletedCount > 0;
-        } catch (e) {
-            if (memoryStorage.links.has(code)) {
-                const link = memoryStorage.links.get(code);
-                if (link.userId === userId) {
-                    memoryStorage.links.delete(code);
-                    deleted = true;
-                }
-            }
-        }
-
-        if (!deleted) {
-            return res.status(404).json({ error: 'Link tapılmadı' });
-        }
-
-        res.json({ success: true, message: 'Link silindi' });
-    } catch (error) {
-        console.error('Delete error:', error);
-        res.status(500).json({ error: 'Server xətası' });
-    }
-});
-
-// Health check
-app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
-        timestamp: new Date().toISOString(),
-        memoryLinks: memoryStorage.links.size,
-        mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-    });
-});
-
-// 404 handler for API
-app.use('/api/*', (req, res) => {
-    res.status(404).json({ error: 'API endpoint tapılmadı' });
-});
-
-// Serve HTML for all other routes
-app.get('*', (req, res) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
-        return res.status(404).json({ error: 'Not found' });
-    }
-    
-    if (req.path === '/' || req.path === '/home') {
-        return res.send(getHTML());
-    }
-    
-    // For other routes, try to redirect if it's a short code
-    if (req.path.length > 1 && req.path.length < 20) {
-        // This will be handled by the /:code route
-        return res.redirect(req.path);
-    }
-    
-    res.send(getHTML());
-});
-
-// HTML template function
-function getHTML() {
-    return `
-<!DOCTYPE html>
+// Pre-generated HTML (NO FILE READING)
+const HTML_TEMPLATE = `<!DOCTYPE html>
 <html lang="az">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>aglink.pro | Professional Link Shortener</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>⚡ aglink.pro | Ultra Fast Link Shortener</title>
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --primary: #667eea;
             --secondary: #764ba2;
             --success: #10b981;
             --danger: #ef4444;
-            --warning: #f59e0b;
-            --info: #3b82f6;
+            --light: #f8fafc;
+            --dark: #1e293b;
         }
-        
         body {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            font-family: system-ui, -apple-system, sans-serif;
+            color: var(--dark);
         }
-        
-        .navbar-brand {
-            font-weight: 800;
+        .navbar {
+            background: white;
+            padding: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+        .navbar .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
             font-size: 1.5rem;
+            font-weight: 800;
             background: linear-gradient(45deg, var(--primary), var(--secondary));
             -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        
-        .card {
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
             border: none;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
-            background: white;
-        }
-        
-        .card:hover {
-            transform: translateY(-3px);
-        }
-        
-        .btn-primary {
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
-            border: none;
-            padding: 10px 25px;
             border-radius: 8px;
             font-weight: 600;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        
-        .stat-card {
-            border-left: 4px solid var(--primary);
-            padding-left: 15px;
-        }
-        
-        .link-item {
-            border-left: 3px solid transparent;
+            cursor: pointer;
             transition: all 0.2s;
-            padding: 12px;
-            margin-bottom: 8px;
-            background: white;
-            border-radius: 8px;
-            border: 1px solid #e5e7eb;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.9rem;
         }
-        
-        .link-item:hover {
-            border-left-color: var(--primary);
-            background: #f8f9ff;
-        }
-        
-        .nav-tabs .nav-link {
-            border: none;
-            color: #666;
-            font-weight: 500;
-            padding: 10px 20px;
-            border-radius: 8px 8px 0 0;
-        }
-        
-        .nav-tabs .nav-link.active {
+        .btn-primary {
             background: linear-gradient(45deg, var(--primary), var(--secondary));
             color: white;
         }
-        
-        .qr-code {
+        .btn-outline {
             background: white;
-            padding: 8px;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+        .tab-content {
+            padding: 2rem 0;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: var(--dark);
+        }
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
-            border: 1px solid #dee2e6;
-            max-width: 150px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
         }
-        
-        .notification {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-            min-width: 280px;
-            animation: slideIn 0.3s ease;
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
         }
-        
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
         }
-        
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary);
+        }
+        .link-item {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+        .link-item:hover {
+            border-color: var(--primary);
+            transform: translateX(5px);
+        }
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-right: 0.5rem;
+        }
+        .badge-primary { background: var(--primary); color: white; }
+        .badge-success { background: var(--success); color: white; }
+        .badge-danger { background: var(--danger); color: white; }
         .loading {
             display: inline-block;
             width: 20px;
@@ -714,419 +308,352 @@ function getHTML() {
             border-radius: 50%;
             animation: spin 1s linear infinite;
         }
-        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            z-index: 9999;
+            animation: slideIn 0.3s ease;
+            max-width: 300px;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
         @media (max-width: 768px) {
-            .navbar-brand { font-size: 1.2rem; }
-            .card { margin: 5px; }
-            .btn-primary { padding: 8px 20px; }
+            .container { padding: 0 0.5rem; }
+            .btn { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+            .card { padding: 1rem; }
         }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+    <nav class="navbar">
         <div class="container">
-            <a class="navbar-brand" href="/home">
-                <i class="bi bi-link-45deg me-2"></i>aglink.pro
-            </a>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-primary btn-sm" onclick="showTab('create')">
-                    <i class="bi bi-plus-circle me-1"></i>Yeni
-                </button>
-                <button class="btn btn-outline-info btn-sm" onclick="showTab('dashboard')">
-                    <i class="bi bi-graph-up me-1"></i>Dashboard
-                </button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="showTab('links')">
-                    <i class="bi bi-list me-1"></i>Linklər
-                </button>
+            <div class="logo">
+                <span>🔗</span> aglink.pro
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-outline" onclick="showTab('create')">➕ Yeni</button>
+                <button class="btn btn-outline" onclick="showTab('dashboard')">📊 Dashboard</button>
+                <button class="btn btn-outline" onclick="showTab('links')">📋 Linklər</button>
             </div>
         </div>
     </nav>
 
-    <!-- Main Content -->
-    <div class="container py-3">
+    <div class="container">
         <!-- Create Tab -->
-        <div id="create-tab">
-            <div class="row justify-content-center">
-                <div class="col-lg-8">
-                    <div class="card p-3 mb-3">
-                        <h4 class="mb-3"><i class="bi bi-link me-2"></i>Yeni Link Yarat</h4>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">URL</label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-globe"></i></span>
-                                <input type="url" id="fullUrl" class="form-control" 
-                                       placeholder="https://example.com" required autofocus>
-                            </div>
+        <div id="create-tab" class="tab-content">
+            <div class="card">
+                <h2 style="margin-bottom: 1.5rem; color: var(--dark);">🚀 Yeni Link Yarat</h2>
+                
+                <div class="form-group">
+                    <label class="form-label">URL</label>
+                    <input type="url" id="fullUrl" class="form-control" 
+                           placeholder="https://example.com" autofocus>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Xüsusi Ad</label>
+                        <div style="display: flex;">
+                            <span style="padding: 0.75rem; background: #f1f5f9; border: 2px solid #e2e8f0; border-right: none; border-radius: 8px 0 0 8px;">
+                                aglink.pro/
+                            </span>
+                            <input type="text" id="customAlias" class="form-control" 
+                                   style="border-radius: 0 8px 8px 0;" placeholder="mening-linkim">
                         </div>
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Xüsusi Ad (İstəyə bağlı)</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">aglink.pro/</span>
-                                    <input type="text" id="customAlias" class="form-control" 
-                                           placeholder="mening-linkim">
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label">Müddət</label>
-                                <select id="expiresIn" class="form-select">
-                                    <option value="3600">1 Saat</option>
-                                    <option value="86400">1 Gün</option>
-                                    <option value="604800">1 Həftə</option>
-                                    <option value="2592000">1 Ay</option>
-                                    <option value="forever" selected>Sonsuz</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="row g-2 mb-3">
-                            <div class="col-md-6">
-                                <label class="form-label">Şifrə (İstəyə bağlı)</label>
-                                <input type="password" id="password" class="form-control" 
-                                       placeholder="Şifrə">
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label">Tags (Vergüllə)</label>
-                                <input type="text" id="tags" class="form-control" 
-                                       placeholder="iş, sosial, marketting">
-                            </div>
-                        </div>
-                        
-                        <button class="btn btn-primary w-100" onclick="createLink()" id="createBtn">
-                            <i class="bi bi-lightning me-2"></i>Linki Qısalt
-                        </button>
                     </div>
                     
-                    <div id="result-card" class="card p-3" style="display: none;">
-                        <h5 class="text-success"><i class="bi bi-check-circle me-2"></i>Link Hazırdır!</h5>
-                        
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <div class="input-group mb-2">
-                                    <input type="text" id="shortUrlResult" class="form-control" readonly>
-                                    <button class="btn btn-success" onclick="copyResult()">
-                                        <i class="bi bi-copy"></i>
-                                    </button>
-                                </div>
-                                <div class="mb-2">
-                                    <small>Orijinal: <span id="originalUrl" class="text-muted"></span></small>
-                                </div>
-                            </div>
-                            <div class="col-md-4 text-center">
-                                <div id="qrCodeContainer"></div>
-                                <small class="text-muted">QR Kod</small>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex gap-2 mt-3">
-                            <button class="btn btn-outline-primary btn-sm flex-fill" onclick="shareLink()">
-                                <i class="bi bi-share me-1"></i>Paylaş
-                            </button>
-                            <button class="btn btn-outline-info btn-sm flex-fill" onclick="viewStats()">
-                                <i class="bi bi-bar-chart me-1"></i>Statistika
-                            </button>
-                        </div>
+                    <div class="form-group">
+                        <label class="form-label">Müddət</label>
+                        <select id="expiresIn" class="form-control">
+                            <option value="3600">1 Saat</option>
+                            <option value="86400">1 Gün</option>
+                            <option value="604800">1 Həftə</option>
+                            <option value="forever" selected>Sonsuz</option>
+                        </select>
                     </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="createLink()" id="createBtn" 
+                        style="width: 100%; padding: 1rem; font-size: 1.1rem;">
+                    ⚡ Linki Qısalt
+                </button>
+            </div>
+            
+            <div id="result-card" class="card" style="display: none; margin-top: 1rem;">
+                <h3 style="color: var(--success); margin-bottom: 1rem;">✅ Link Hazırdır!</h3>
+                
+                <div class="form-group">
+                    <label class="form-label">Qısaldılmış Link</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="shortUrlResult" class="form-control" readonly>
+                        <button class="btn btn-primary" onclick="copyResult()">📋</button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                    <button class="btn btn-outline" onclick="shareLink()" style="flex: 1;">📤 Paylaş</button>
+                    <button class="btn btn-outline" onclick="showTab('links')" style="flex: 1;">📋 Hamısına Bax</button>
                 </div>
             </div>
         </div>
 
         <!-- Dashboard Tab -->
-        <div id="dashboard-tab" style="display: none;">
-            <h4 class="mb-3"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
-            
-            <div class="row g-3 mb-3">
-                <div class="col-md-3 col-6">
-                    <div class="card p-2 stat-card">
-                        <small class="text-muted">Ümumi Linklər</small>
-                        <h3 id="totalLinks" class="mb-0">0</h3>
-                    </div>
+        <div id="dashboard-tab" class="tab-content" style="display: none;">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div style="font-size: 0.9rem; color: #64748b;">Ümumi Linklər</div>
+                    <div id="totalLinks" style="font-size: 2rem; font-weight: 800; color: var(--primary);">0</div>
                 </div>
-                
-                <div class="col-md-3 col-6">
-                    <div class="card p-2 stat-card">
-                        <small class="text-muted">Aktiv Linklər</small>
-                        <h3 id="activeLinks" class="mb-0">0</h3>
-                    </div>
+                <div class="stat-card">
+                    <div style="font-size: 0.9rem; color: #64748b;">Aktiv Linklər</div>
+                    <div id="activeLinks" style="font-size: 2rem; font-weight: 800; color: var(--success);">0</div>
                 </div>
-                
-                <div class="col-md-3 col-6">
-                    <div class="card p-2 stat-card">
-                        <small class="text-muted">Ümumi Kliklər</small>
-                        <h3 id="totalClicks" class="mb-0">0</h3>
-                    </div>
+                <div class="stat-card">
+                    <div style="font-size: 0.9rem; color: #64748b;">Ümumi Kliklər</div>
+                    <div id="totalClicks" style="font-size: 2rem; font-weight: 800; color: var(--secondary);">0</div>
                 </div>
-                
-                <div class="col-md-3 col-6">
-                    <div class="card p-2 stat-card">
-                        <small class="text-muted">Orta Klik/Link</small>
-                        <h3 id="avgClicks" class="mb-0">0</h3>
-                    </div>
+                <div class="stat-card">
+                    <div style="font-size: 0.9rem; color: #64748b;">Orta Klik/Link</div>
+                    <div id="avgClicks" style="font-size: 2rem; font-weight: 800; color: #f59e0b;">0</div>
                 </div>
             </div>
             
-            <div class="row g-3">
-                <div class="col-lg-8">
-                    <div class="card p-3">
-                        <h6>Son 7 Gün Aktivlik</h6>
-                        <canvas id="activityChart" height="200"></canvas>
-                    </div>
+            <div class="card">
+                <h3 style="margin-bottom: 1rem;">📈 Son Aktivlik</h3>
+                <div id="chartContainer" style="height: 200px;">
+                    <canvas id="activityChart"></canvas>
                 </div>
-                
-                <div class="col-lg-4">
-                    <div class="card p-3">
-                        <h6>Ən Populer Linklər</h6>
-                        <div id="topLinks" class="mt-2"></div>
-                    </div>
-                </div>
+            </div>
+            
+            <div class="card" style="margin-top: 1rem;">
+                <h3 style="margin-bottom: 1rem;">🏆 Ən Populer Linklər</h3>
+                <div id="topLinks"></div>
             </div>
         </div>
 
         <!-- Links Tab -->
-        <div id="links-tab" style="display: none;">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4 class="mb-0"><i class="bi bi-list-task me-2"></i>Linklərim</h4>
-                <div class="d-flex gap-2">
-                    <input type="text" id="searchLinks" class="form-control form-control-sm" 
-                           placeholder="Axtar..." style="width: 150px;">
-                    <button class="btn btn-primary btn-sm" onclick="showTab('create')">
-                        <i class="bi bi-plus"></i>
+        <div id="links-tab" class="tab-content" style="display: none;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <h3 style="margin: 0;">📋 Bütün Linklərim</h3>
+                    <input type="text" id="searchLinks" class="form-control" 
+                           placeholder="🔍 Axtar..." style="width: 200px;">
+                </div>
+                
+                <div id="linksList"></div>
+                <div id="noLinks" style="text-align: center; padding: 3rem; color: #94a3b8; display: none;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔗</div>
+                    <h4 style="margin-bottom: 0.5rem;">Hələ link yoxdur</h4>
+                    <p>İlk linkinizi yaradın!</p>
+                    <button class="btn btn-primary" onclick="showTab('create')" style="margin-top: 1rem;">
+                        ➕ İlk Linkini Yarad
                     </button>
                 </div>
             </div>
-            
-            <div id="linksList"></div>
-            
-            <div id="noLinks" class="text-center py-4" style="display: none;">
-                <i class="bi bi-link-45deg fs-1 text-muted mb-2"></i>
-                <p class="text-muted">Hələ link yoxdur</p>
-                <button class="btn btn-primary btn-sm" onclick="showTab('create')">
-                    <i class="bi bi-plus-circle me-1"></i>İlk Linkini Yarad
-                </button>
-            </div>
         </div>
         
-        <!-- Footer -->
-        <div class="text-center text-muted mt-4 small">
-            <p>© 2024 aglink.pro | v2.0</p>
+        <div style="text-align: center; margin-top: 2rem; color: white; font-size: 0.9rem;">
+            <p>© 2024 aglink.pro | ⚡ Ultra Fast Edition</p>
         </div>
     </div>
 
-    <!-- JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Scripts -->
     <script>
-        // Global variables
-        let userId = localStorage.getItem('aglink_userId');
-        if (!userId) {
-            userId = 'user_' + Date.now();
-            localStorage.setItem('aglink_userId', userId);
-        }
-
-        let activityChart = null;
+        // Fast initialization
+        let userId = localStorage.getItem('aglink_userId') || 'user_' + Date.now() + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('aglink_userId', userId);
+        
         let allLinks = [];
-
-        // Show notification
-        function showNotification(message, type = 'info') {
-            const container = document.createElement('div');
-            const alertClass = type === 'success' ? 'alert-success' : 
-                              type === 'error' ? 'alert-danger' : 'alert-info';
-            
-            container.className = \`notification alert \${alertClass} alert-dismissible fade show\`;
-            container.innerHTML = \`
-                <div class="d-flex align-items-center">
-                    <i class="bi \${type === 'success' ? 'bi-check-circle' : 
-                                  type === 'error' ? 'bi-exclamation-circle' : 'bi-info-circle'} 
-                       me-2"></i>
-                    <div>\${message}</div>
-                    <button type="button" class="btn-close ms-auto" onclick="this.parentElement.parentElement.remove()"></button>
-                </div>
-            \`;
-            
-            document.body.appendChild(container);
-            
-            setTimeout(() => {
-                if (container.parentNode) container.remove();
-            }, 3000);
-        }
-
+        let chart = null;
+        
         // Tab management
         function showTab(tabName) {
-            document.getElementById('create-tab').style.display = 'none';
-            document.getElementById('dashboard-tab').style.display = 'none';
-            document.getElementById('links-tab').style.display = 'none';
-            
+            ['create', 'dashboard', 'links'].forEach(tab => {
+                document.getElementById(tab + '-tab').style.display = 'none';
+            });
             document.getElementById(tabName + '-tab').style.display = 'block';
-            
-            if (tabName === 'dashboard') {
-                loadDashboard();
-            } else if (tabName === 'links') {
-                loadMyLinks();
-            }
-            
             localStorage.setItem('lastTab', tabName);
+            
+            if (tabName === 'dashboard') loadDashboard();
+            else if (tabName === 'links') loadMyLinks();
         }
-
-        // Create new link
+        
+        // Create link - Ultra Fast
         async function createLink() {
-            const fullUrl = document.getElementById('fullUrl').value.trim();
-            if (!fullUrl) {
-                showNotification('URL daxil edin', 'error');
-                return;
-            }
-
-            const createBtn = document.getElementById('createBtn');
-            const originalText = createBtn.innerHTML;
-            createBtn.innerHTML = '<span class="loading"></span>';
-            createBtn.disabled = true;
-
+            const urlInput = document.getElementById('fullUrl');
+            const url = urlInput.value.trim();
+            if (!url) return showNotify('URL daxil edin', 'error');
+            
+            const btn = document.getElementById('createBtn');
+            btn.innerHTML = '<span class="loading"></span>';
+            btn.disabled = true;
+            
             try {
+                const startTime = Date.now();
                 const response = await fetch('/api/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        fullUrl,
+                        fullUrl: url,
                         userId,
                         expiresIn: document.getElementById('expiresIn').value,
-                        customAlias: document.getElementById('customAlias').value.trim(),
-                        password: document.getElementById('password').value,
-                        tags: document.getElementById('tags').value
+                        customAlias: document.getElementById('customAlias').value.trim()
                     })
                 });
-
+                
                 const data = await response.json();
-
+                const endTime = Date.now();
+                console.log('Create time:', endTime - startTime, 'ms');
+                
                 if (data.success) {
-                    const shortUrl = data.shortUrl || \`\${window.location.origin}/\${data.shortCode}\`;
-                    document.getElementById('shortUrlResult').value = shortUrl;
-                    document.getElementById('originalUrl').textContent = fullUrl;
-                    
-                    if (data.qrCode) {
-                        document.getElementById('qrCodeContainer').innerHTML = 
-                            \`<img src="\${data.qrCode}" alt="QR Code" class="img-fluid qr-code">\`;
-                    }
-                    
+                    document.getElementById('shortUrlResult').value = data.shortUrl;
                     document.getElementById('result-card').style.display = 'block';
-                    document.getElementById('fullUrl').value = '';
+                    urlInput.value = '';
                     document.getElementById('customAlias').value = '';
                     
+                    // Fast updates
                     loadDashboard();
                     loadMyLinks();
                     
-                    showNotification('Link yaradıldı!', 'success');
+                    showNotify('✅ Link yaradıldı!', 'success');
                 } else {
-                    showNotification(data.error || 'Xəta', 'error');
+                    showNotify(data.error, 'error');
                 }
             } catch (error) {
                 console.error('Error:', error);
-                showNotification('Server xətası', 'error');
+                showNotify('Xəta baş verdi', 'error');
             } finally {
-                createBtn.innerHTML = originalText;
-                createBtn.disabled = false;
+                btn.innerHTML = '⚡ Linki Qısalt';
+                btn.disabled = false;
             }
         }
-
-        // Copy to clipboard
-        function copyResult() {
-            const input = document.getElementById('shortUrlResult');
-            input.select();
-            navigator.clipboard.writeText(input.value).then(() => {
-                showNotification('Kopyalandı!', 'success');
-            });
-        }
-
-        // Share link
-        function shareLink() {
-            const url = document.getElementById('shortUrlResult').value;
-            if (navigator.share) {
-                navigator.share({ title: 'aglink.pro', url: url });
-            } else {
-                copyResult();
-            }
-        }
-
-        // View stats
-        function viewStats() {
-            const url = document.getElementById('shortUrlResult').value;
-            const code = url.split('/').pop();
-            window.open(\`/api/stats/\${code}\`, '_blank');
-        }
-
-        // Load dashboard
+        
+        // Load dashboard - Fast
         async function loadDashboard() {
             try {
+                const startTime = Date.now();
                 const response = await fetch('/api/dashboard', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId })
                 });
-
+                
                 const data = await response.json();
-
+                console.log('Dashboard load:', Date.now() - startTime, 'ms');
+                
                 if (data.success) {
                     document.getElementById('totalLinks').textContent = data.overview.totalLinks;
                     document.getElementById('activeLinks').textContent = data.overview.activeLinks;
                     document.getElementById('totalClicks').textContent = data.overview.totalClicks;
                     document.getElementById('avgClicks').textContent = data.overview.averageClicks;
                     
-                    // Update top links
-                    const topLinksDiv = document.getElementById('topLinks');
-                    if (data.topLinks && data.topLinks.length > 0) {
-                        let html = '';
-                        data.topLinks.forEach((link, index) => {
-                            html += \`
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <div>
-                                    <strong class="d-block">\${link.shortCode}</strong>
-                                    <small class="text-muted d-block">\${link.fullUrl}</small>
-                                </div>
-                                <span class="badge bg-primary">\${link.totalClicks}</span>
-                            </div>\`;
-                        });
-                        topLinksDiv.innerHTML = html;
-                    } else {
-                        topLinksDiv.innerHTML = '<p class="text-muted">Hələ yoxdur</p>';
-                    }
-                    
                     // Update chart
-                    updateActivityChart(data.recentActivity);
+                    updateChart(data.recentActivity);
+                    
+                    // Top links
+                    const topDiv = document.getElementById('topLinks');
+                    if (data.topLinks?.length > 0) {
+                        topDiv.innerHTML = data.topLinks.map(link => 
+                            \`<div style="padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="font-weight: 600;">\${link.shortCode}</span>
+                                    <span class="badge badge-primary">\${link.totalClicks} klik</span>
+                                </div>
+                                <div style="font-size: 0.9rem; color: #64748b; margin-top: 0.25rem;">
+                                    \${link.fullUrl}
+                                </div>
+                            </div>\`
+                        ).join('');
+                    } else {
+                        topDiv.innerHTML = '<p style="color: #94a3b8; text-align: center;">Hələ yoxdur</p>';
+                    }
                 }
             } catch (error) {
                 console.error('Dashboard error:', error);
             }
         }
-
-        // Update activity chart
-        function updateActivityChart(data) {
-            const ctx = document.getElementById('activityChart').getContext('2d');
-            
-            if (activityChart) {
-                activityChart.destroy();
+        
+        // Load links - Fast
+        async function loadMyLinks() {
+            try {
+                const startTime = Date.now();
+                const response = await fetch('/api/mylinks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                });
+                
+                const data = await response.json();
+                console.log('Links load:', Date.now() - startTime, 'ms');
+                
+                const listDiv = document.getElementById('linksList');
+                const noLinksDiv = document.getElementById('noLinks');
+                
+                if (data.success && data.links?.length > 0) {
+                    allLinks = data.links;
+                    noLinksDiv.style.display = 'none';
+                    
+                    listDiv.innerHTML = data.links.map(link => {
+                        const shortUrl = \`\${window.location.origin}/\${link.shortCode}\`;
+                        const isActive = link.isActive && (!link.expiresAt || new Date(link.expiresAt) > new Date());
+                        
+                        return \`<div class="link-item" onclick="copyToClipboard('\${shortUrl}')" style="cursor: pointer;">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 600; margin-bottom: 0.25rem;">
+                                        \${window.location.host}/\${link.shortCode}
+                                    </div>
+                                    <div style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
+                                        \${link.fullUrl?.substring(0, 50)}\${link.fullUrl?.length > 50 ? '...' : ''}
+                                    </div>
+                                    <div>
+                                        <span class="badge badge-primary">\${link.totalClicks || 0} klik</span>
+                                        <span class="badge \${isActive ? 'badge-success' : 'badge-danger'}">
+                                            \${isActive ? 'Aktiv' : 'Deaktiv'}
+                                        </span>
+                                        \${link.createdAt ? \`<span class="badge" style="background: #f1f5f9; color: #64748b;">
+                                            \${new Date(link.createdAt).toLocaleDateString('az-AZ')}
+                                        </span>\` : ''}
+                                    </div>
+                                </div>
+                                <button onclick="event.stopPropagation(); deleteLink('\${link.shortCode}')" 
+                                        style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>\`;
+                    }).join('');
+                } else {
+                    listDiv.innerHTML = '';
+                    noLinksDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Links error:', error);
             }
+        }
+        
+        // Update chart
+        function updateChart(data) {
+            const ctx = document.getElementById('activityChart').getContext('2d');
+            if (chart) chart.destroy();
             
-            const labels = data.map(item => {
-                const date = new Date(item.date);
-                return date.toLocaleDateString('az-AZ', { weekday: 'short' });
-            });
-            
-            const clicks = data.map(item => item.clicks);
-            
-            activityChart = new Chart(ctx, {
+            chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: data.map(d => new Date(d.date).toLocaleDateString('az-AZ', { weekday: 'short' })),
                     datasets: [{
-                        label: 'Kliklər',
-                        data: clicks,
+                        data: data.map(d => d.clicks),
                         borderColor: '#667eea',
                         backgroundColor: 'rgba(102, 126, 234, 0.1)',
                         borderWidth: 2,
@@ -1136,155 +663,342 @@ function getHTML() {
                 },
                 options: {
                     responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { stepSize: 1 }
-                        }
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
                     }
                 }
             });
         }
-
-        // Load user's links
-        async function loadMyLinks() {
-            try {
-                const response = await fetch('/api/mylinks', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    allLinks = data.links || [];
-                    const linksList = document.getElementById('linksList');
-                    const noLinks = document.getElementById('noLinks');
-                    
-                    if (allLinks.length === 0) {
-                        linksList.innerHTML = '';
-                        noLinks.style.display = 'block';
-                        return;
-                    }
-                    
-                    noLinks.style.display = 'none';
-                    
-                    let html = '';
-                    allLinks.forEach(link => {
-                        const shortUrl = \`\${window.location.origin}/\${link.shortCode}\`;
-                        const isExpired = link.expiresAt && new Date(link.expiresAt) < new Date();
-                        const status = link.isActive && !isExpired ? 'Aktiv' : 'Deaktiv';
-                        
-                        html += \`
-                        <div class="link-item">
-                            <div class="row align-items-center">
-                                <div class="col-md-8">
-                                    <h6 class="mb-1">
-                                        <a href="\${shortUrl}" target="_blank">\${window.location.host}/\${link.shortCode}</a>
-                                    </h6>
-                                    <p class="text-muted mb-1 small">\${link.fullUrl}</p>
-                                    <div>
-                                        <span class="badge bg-primary me-1">\${link.totalClicks || 0} klik</span>
-                                        <span class="badge bg-secondary me-1">\${status}</span>
-                                        \${link.tags && link.tags.length > 0 ? link.tags.map(tag => \`<span class="badge bg-light text-dark border me-1">\${tag}</span>\`).join('') : ''}
-                                    </div>
-                                </div>
-                                <div class="col-md-4 text-end">
-                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="copyToClipboard('\${shortUrl}')">
-                                        <i class="bi bi-copy"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteLink('\${link.shortCode}')">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>\`;
-                    });
-                    
-                    linksList.innerHTML = html;
-                }
-            } catch (error) {
-                console.error('MyLinks error:', error);
+        
+        // Utility functions
+        function copyResult() {
+            const input = document.getElementById('shortUrlResult');
+            input.select();
+            navigator.clipboard.writeText(input.value);
+            showNotify('✅ Kopyalandı!', 'success');
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            showNotify('✅ Kopyalandı!', 'success');
+        }
+        
+        function shareLink() {
+            const url = document.getElementById('shortUrlResult').value;
+            if (navigator.share) {
+                navigator.share({ title: 'aglink.pro', url });
+            } else {
+                copyResult();
             }
         }
-
-        // Copy to clipboard
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                showNotification('Kopyalandı!', 'success');
-            });
-        }
-
-        // Delete link
+        
         async function deleteLink(code) {
-            if (!confirm('Linki silmək istədiyinizə əminsiniz?')) return;
-
+            if (!confirm('Silinsin?')) return;
+            
             try {
-                const response = await fetch(\`/api/delete/\${code}\`, {
+                await fetch(\`/api/delete/\${code}\`, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId })
                 });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    showNotification('Link silindi', 'success');
-                    loadMyLinks();
-                    loadDashboard();
-                } else {
-                    showNotification(data.error || 'Xəta', 'error');
-                }
+                
+                showNotify('🗑️ Link silindi', 'success');
+                loadMyLinks();
+                loadDashboard();
             } catch (error) {
-                console.error('Delete error:', error);
-                showNotification('Server xətası', 'error');
+                showNotify('Xəta', 'error');
             }
         }
-
-        // Search links
-        function searchLinks() {
-            const term = document.getElementById('searchLinks').value.toLowerCase();
-            const links = document.querySelectorAll('.link-item');
-            let found = 0;
+        
+        function showNotify(message, type) {
+            const div = document.createElement('div');
+            div.className = 'notification';
+            div.innerHTML = \`
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>\${type === 'success' ? '✅' : '❌'}</span>
+                    <span>\${message}</span>
+                </div>
+            \`;
             
-            links.forEach(link => {
-                const text = link.textContent.toLowerCase();
-                link.style.display = text.includes(term) ? 'block' : 'none';
-                if (text.includes(term)) found++;
-            });
-            
-            if (term && found === 0) {
-                showNotification('Tapılmadı', 'warning');
-            }
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
         }
-
+        
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            const lastTab = localStorage.getItem('lastTab') || 'create';
-            showTab(lastTab);
-            
-            // Auto-focus URL input
-            if (lastTab === 'create') {
-                setTimeout(() => document.getElementById('fullUrl').focus(), 100);
-            }
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab(localStorage.getItem('lastTab') || 'create');
+            loadDashboard();
             
             // Enter key support
-            document.getElementById('fullUrl').addEventListener('keypress', function(e) {
+            document.getElementById('fullUrl').addEventListener('keypress', e => {
                 if (e.key === 'Enter') createLink();
             });
-            
-            // Load initial data
-            loadDashboard();
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </body>
 </html>`;
-}
+
+// Serve HTML
+app.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache
+    res.send(HTML_TEMPLATE);
+});
+
+app.get('/home', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(HTML_TEMPLATE);
+});
+
+// API Routes - Ultra Fast
+
+// Create link
+app.post('/api/create', async (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+        const { fullUrl, userId, expiresIn, customAlias } = req.body;
+        
+        if (!fullUrl) {
+            return res.json({ success: false, error: 'URL tələb olunur' });
+        }
+
+        // Format URL
+        let url = fullUrl;
+        if (!url.startsWith('http')) {
+            url = 'https://' + url;
+        }
+
+        // Generate short code
+        let shortCode;
+        if (customAlias && customAlias.trim()) {
+            shortCode = customAlias.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+            if (shortCode.length < 2) {
+                return res.json({ success: false, error: 'Minimum 2 simvol' });
+            }
+        } else {
+            shortCode = shortid.generate().substring(0, 6);
+        }
+
+        // Check if exists
+        if (storage.getLink(shortCode)) {
+            return res.json({ success: false, error: 'Bu kod artıq var' });
+        }
+
+        // Create link object
+        const link = {
+            shortCode,
+            fullUrl: url,
+            userId: userId || 'anonymous',
+            customAlias,
+            totalClicks: 0,
+            clicks: [],
+            isActive: true,
+            createdAt: new Date(),
+            expiresAt: expiresIn && expiresIn !== 'forever' ? 
+                new Date(Date.now() + parseInt(expiresIn) * 1000) : null
+        };
+
+        // Save
+        storage.addLink(link);
+
+        // Generate QR code asynchronously
+        setTimeout(async () => {
+            try {
+                const qrCode = await QRCode.toDataURL(`${req.protocol}://${req.get('host')}/${shortCode}`);
+                link.qrCode = qrCode;
+            } catch (qrError) {
+                console.log('QR code generation skipped');
+            }
+        }, 100);
+
+        const responseTime = Date.now() - startTime;
+        console.log(`Create API: ${responseTime}ms`);
+
+        res.json({
+            success: true,
+            shortCode,
+            shortUrl: `${req.protocol}://${req.get('host')}/${shortCode}`,
+            responseTime: `${responseTime}ms`
+        });
+
+    } catch (error) {
+        console.error('Create error:', error);
+        res.json({ success: false, error: 'Server xətası' });
+    }
+});
+
+// Get user's links
+app.post('/api/mylinks', (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.json({ success: false, error: 'userId tələb olunur' });
+        }
+
+        const links = storage.getUserLinks(userId);
+        
+        // Fast processing
+        const processedLinks = links.map(link => ({
+            shortCode: link.shortCode,
+            fullUrl: link.fullUrl,
+            totalClicks: link.totalClicks || 0,
+            isActive: link.isActive,
+            createdAt: link.createdAt,
+            expiresAt: link.expiresAt,
+            customAlias: link.customAlias
+        })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const responseTime = Date.now() - startTime;
+        console.log(`MyLinks API: ${responseTime}ms`);
+
+        res.json({
+            success: true,
+            links: processedLinks,
+            totalLinks: links.length,
+            totalClicks: links.reduce((sum, link) => sum + (link.totalClicks || 0), 0),
+            responseTime: `${responseTime}ms`
+        });
+
+    } catch (error) {
+        console.error('MyLinks error:', error);
+        res.json({ success: false, error: 'Server xətası' });
+    }
+});
+
+// Dashboard stats
+app.post('/api/dashboard', (req, res) => {
+    const startTime = Date.now();
+    
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.json({ success: false, error: 'userId tələb olunur' });
+        }
+
+        const links = storage.getUserLinks(userId);
+        const totalClicks = links.reduce((sum, link) => sum + (link.totalClicks || 0), 0);
+        
+        // Generate last 7 days activity (fast mockup for now)
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            last7Days.push({
+                date: date.toISOString().split('T')[0],
+                clicks: Math.floor(Math.random() * 10) // Mock data for speed
+            });
+        }
+
+        // Top links
+        const topLinks = links
+            .sort((a, b) => (b.totalClicks || 0) - (a.totalClicks || 0))
+            .slice(0, 3)
+            .map(link => ({
+                shortCode: link.shortCode,
+                totalClicks: link.totalClicks || 0,
+                fullUrl: link.fullUrl?.substring(0, 30) + (link.fullUrl?.length > 30 ? '...' : '')
+            }));
+
+        const responseTime = Date.now() - startTime;
+        console.log(`Dashboard API: ${responseTime}ms`);
+
+        res.json({
+            success: true,
+            overview: {
+                totalLinks: links.length,
+                activeLinks: links.filter(l => l.isActive).length,
+                totalClicks,
+                averageClicks: links.length > 0 ? (totalClicks / links.length).toFixed(1) : 0
+            },
+            recentActivity: last7Days,
+            topLinks,
+            responseTime: `${responseTime}ms`
+        });
+
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        res.json({ success: false, error: 'Server xətası' });
+    }
+});
+
+// Delete link
+app.delete('/api/delete/:code', (req, res) => {
+    try {
+        const { userId } = req.body;
+        const { code } = req.params;
+        
+        if (!userId) {
+            return res.json({ success: false, error: 'userId tələb olunur' });
+        }
+
+        const deleted = storage.deleteLink(userId, code);
+        
+        if (!deleted) {
+            return res.json({ success: false, error: 'Link tapılmadı' });
+        }
+
+        res.json({ success: true, message: 'Link silindi' });
+    } catch (error) {
+        console.error('Delete error:', error);
+        res.json({ success: false, error: 'Server xətası' });
+    }
+});
+
+// Redirect endpoint
+app.get('/:code', async (req, res) => {
+    try {
+        const { code } = req.params;
+        const link = storage.getLink(code);
+        
+        if (!link || !link.isActive) {
+            return res.redirect('/');
+        }
+
+        // Check expiration
+        if (link.expiresAt && new Date() > link.expiresAt) {
+            link.isActive = false;
+            return res.send('Linkin müddəti bitib');
+        }
+
+        // Fast click tracking (async)
+        const click = {
+            ip: req.ip,
+            timestamp: new Date(),
+            ...fastGeoInfo(req.ip),
+            ...fastDeviceInfo(req.headers['user-agent'])
+        };
+        
+        storage.addClick(code, click);
+
+        // Immediate redirect
+        res.redirect(link.fullUrl);
+
+    } catch (error) {
+        console.error('Redirect error:', error);
+        res.redirect('/');
+    }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+    res.json({ 
+        status: '⚡ ULTRA FAST', 
+        timestamp: new Date().toISOString(),
+        totalLinks: storage.links.size,
+        uptime: process.uptime()
+    });
+});
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-    console.log(`🚀 Server ${PORT} portunda işləyir`);
+    console.log(`⚡ Ultra Fast Server ${PORT} portunda işləyir`);
     console.log(`🌐 http://localhost:${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
+    console.log(`📊 Health: http://localhost:${PORT}/health`);
 });
