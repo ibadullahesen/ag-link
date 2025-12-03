@@ -381,7 +381,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🌍 aglink.pro | Link Shortener with Analytics</title>
+    <title>🌍 AxtarGet aglink.pro | Link Shortener with Analytics</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
@@ -606,7 +606,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <nav class="navbar">
         <div class="container" style="display: flex; justify-content: space-between; align-items: center;">
             <div class="logo">
-                <span>🌍</span> aglink.pro
+                <span>🌍</span> AxtarGet aglink.pro
             </div>
             <div class="btn-group">
                 <button class="btn btn-outline" onclick="showTab('create')">➕ Yeni Link</button>
@@ -633,7 +633,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
                         <label class="form-label">Xüsusi Ad (İstəyə bağlı)</label>
                         <div style="display: flex;">
                             <span style="padding: 0.75rem; background: #f1f5f9; border: 2px solid #e2e8f0; border-right: none; border-radius: 6px 0 0 6px; font-size: 0.9rem;">
-                                aglink.pro/
+                                AxtarGet aglink.pro/
                             </span>
                             <input type="text" id="customAlias" class="form-control" 
                                    style="border-radius: 0 6px 6px 0;" placeholder="mening-linkim">
@@ -751,7 +751,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
         
         <!-- Footer -->
         <div style="text-align: center; margin-top: 3rem; padding: 1rem; color: #64748b; font-size: 0.9rem; border-top: 1px solid #e2e8f0;">
-            <p>© 2024 aglink.pro | 🌍 Ölkə analitikası ilə | ⚡ Sürətli</p>
+            <p>© 2025 AxtarGet aglink.pro | 🌍 Ölkə analitikası ilə | ⚡ Sürətli</p>
         </div>
     </div>
 
@@ -907,7 +907,7 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
             const url = document.getElementById('shortUrlResult').value;
             if (navigator.share) {
                 navigator.share({
-                    title: 'aglink.pro - Qısaldılmış Link',
+                    title: 'AxtarGet aglink.pro - Qısaldılmış Link',
                     text: 'Bu linki yoxlayın:',
                     url: url
                 });
