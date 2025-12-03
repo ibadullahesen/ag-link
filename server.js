@@ -382,6 +382,66 @@ const HTML_TEMPLATE = `<!DOCTYPE html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🌍 AxtarGet aglink.pro | Link Shortener with Analytics</title>
+    
+    <!-- Meta Tags -->
+    <meta name="description" content="AxtarGet aglink.pro - Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin, ölkə paylanmasını görün.">
+    <meta name="keywords" content="link qısaldıcı, URL qısaldıcı, link shortener, click tracker, analytics, ölkə analitikası, Azerbaijan, Türkiye, Russia">
+    <meta name="author" content="AxtarGet aglink.pro">
+    <meta name="robots" content="index, follow">
+    
+    <!-- Open Graph Tags -->
+    <meta property="og:title" content="🌍 AxtarGet aglink.pro | Link Shortener with Analytics">
+    <meta property="og:description" content="Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://aglink.pro">
+    <meta property="og:image" content="https://aglink.pro/og-image.png">
+    <meta property="og:site_name" content="AxtarGet aglink.pro">
+    <meta property="og:locale" content="az_AZ">
+    
+    <!-- Twitter Card Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="🌍 AxtarGet aglink.pro | Link Shortener with Analytics">
+    <meta name="twitter:description" content="Ölkə analitikası ilə pulsuz link qısaldıcı. Linklərinizi qısaldın, klik statistikalarını izləyin.">
+    <meta name="twitter:image" content="https://aglink.pro/twitter-image.png">
+    <meta name="twitter:site" content="@aglinkpro">
+    
+    <!-- Additional Meta Tags -->
+    <meta name="language" content="Azerbaijani">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AxtarGet aglink.pro">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://aglink.pro">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="https://aglink.pro/favicon.ico">
+    <link rel="apple-touch-icon" href="https://aglink.pro/apple-touch-icon.png">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "AxtarGet aglink.pro",
+        "description": "Ölkə analitikası ilə pulsuz link qısaldıcı xidməti",
+        "url": "https://aglink.pro",
+        "applicationCategory": "UtilityApplication",
+        "operatingSystem": "Any",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "AxtarGet"
+        }
+    }
+    </script>
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
